@@ -168,16 +168,16 @@ float UMXXPDistributor::GetSpecialistXPMultiplier(const FGuid& RobotId) const
     // Mechanic Tier 2 spec grants +20% XP. Savant Tier 3 grants +40%. Catalyst grants +30%.
     // These values align with the Specialization module's design; Roguelike reads them
     // from the profile's existing spec fields rather than re-implementing spec logic.
-    if (Profile.spec_tier2 == ETier2Spec::Mechanic)
+    if (Profile.tier2_spec == ETier2Spec::Mechanic)
     {
         Multiplier = 1.2f;
     }
 
-    if (Profile.spec_tier3 == ETier3Spec::Savant)
+    if (Profile.tier3_spec == ETier3Spec::Savant)
     {
         Multiplier = 1.4f;
     }
-    else if (Profile.spec_tier3 == ETier3Spec::Catalyst)
+    else if (Profile.tier3_spec == ETier3Spec::Catalyst)
     {
         Multiplier = 1.3f;
     }

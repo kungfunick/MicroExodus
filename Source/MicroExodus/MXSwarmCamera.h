@@ -16,11 +16,12 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "CameraActor.h"
+#include "Camera/CameraActor.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "MXTypes.h"
 #include "MXEventData.h"
 #include "MXInterfaces.h"
+#include "MXCameraBehaviors.h"
 #include "MXSwarmCamera.generated.h"
 
 // ---------------------------------------------------------------------------
@@ -66,10 +67,6 @@ struct MICROEXODUS_API FMXCameraZoomEntry
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float TargetHeight = 300.0f;
 };
-
-// ---------------------------------------------------------------------------
-// FMXCameraEvent (forward-declared here — defined fully in MXCameraBehaviors.h)
-#include "MXCameraBehaviors.h"
 
 // ---------------------------------------------------------------------------
 // UMXSwarmCamera
@@ -335,7 +332,7 @@ private:
 
     /**
      * Pending event queue, sorted by priority (highest first).
-     * FMXCameraEvent is defined in MXCameraBehaviors.h — included in the .cpp.
+     * FMXCameraEvent is defined in MXCameraBehaviors.h.
      */
     TArray<FMXCameraEvent> EventQueue;
 
