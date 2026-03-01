@@ -17,7 +17,8 @@
 #include "MXTypes.h"
 #include "MXEventData.h"
 #include "MXInterfaces.h"
-#include "MXSwarmCamera.h"
+// Forward declaration — full type in MXSwarmCamera.h (included in .cpp to avoid circular dependency)
+class UMXSwarmCamera;
 #include "MXCameraBehaviors.generated.h"
 
 // ---------------------------------------------------------------------------

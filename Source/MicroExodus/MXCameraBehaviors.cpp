@@ -3,6 +3,7 @@
 // Agent 7: Camera
 
 #include "MXCameraBehaviors.h"
+#include "MXSwarmCamera.h"
 #include "MXRobotProfile.h"
 #include "MXTypes.h"
 
