@@ -114,11 +114,11 @@ void UMXEventMessageComponent::BuildAndDispatch(EEventType EventType, const FGui
         if (HatProvider.GetInterface())
         {
             const FMXHatDefinition HatDef = IMXHatProvider::Execute_GetHatData(HatProvider.GetObject(), Robot.current_hat_id);
-            EventData.hat_worn_name = HatDef.display_name;
+            EventData.hat_worn_name = HatDef.name;
 
             // Re-fill the hat token in message_text now that we have the name.
             EventData.message_text = EventData.message_text.Replace(
-                TEXT("some hat"), *HatDef.display_name, ESearchCase::CaseSensitive);
+                TEXT("some hat"), *HatDef.name, ESearchCase::CaseSensitive);
         }
     }
 

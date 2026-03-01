@@ -319,12 +319,12 @@ TOptional<FMXAward> UMXAwardSelector::EvaluateCoward(
     const TArray<FMXRobotProfile>& Roster) const
 {
     // Coward: surviving robot with the lowest event count — i.e., stayed out of trouble
-    return EvaluateTourist(Stats, Roster).IsSet()
-        ? EvaluateTourist(Stats, Roster).Map([](FMXAward A) {
-            A.category = EAwardCategory::CowardOfTheRun;
-            return A;
-          })
-        : TOptional<FMXAward>{};
+    TOptional<FMXAward> Tourist = EvaluateTourist(Stats, Roster);
+    if (!Tourist.IsSet())
+        return TOptional<FMXAward>{};
+    FMXAward A = Tourist.GetValue();
+    A.category = EAwardCategory::CowardOfTheRun;
+    return A;
 }
 
 // ---------------------------------------------------------------------------

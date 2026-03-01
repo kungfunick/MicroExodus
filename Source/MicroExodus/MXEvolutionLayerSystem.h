@@ -16,9 +16,9 @@
 #include "MXTypes.h"
 #include "MXEvents.h"
 #include "MXInterfaces.h"
-#include "Evolution/MXEvolutionCalculator.h"
-#include "Evolution/MXWearShader.h"
-#include "Evolution/MXDecalManager.h"
+#include "MXEvolutionCalculator.h"
+#include "MXWearShader.h"
+#include "MXDecalManager.h"
 #include "MXEvolutionLayerSystem.generated.h"
 
 /**
@@ -44,8 +44,6 @@
  * BeginPlay via IMXRobotProvider and after each event-driven update. The canonical copy
  * always lives in UMXRobotManager — this is a display-side cache only.
  */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMXOnEvolutionUpdated);
-
 UCLASS(ClassGroup=(MicroExodus), meta=(BlueprintSpawnableComponent), BlueprintType)
 class MICROEXODUS_API UMXEvolutionLayerSystem : public UActorComponent, public IMXEvolutionTarget
 {
@@ -152,7 +150,7 @@ public:
 
     /** Broadcast after every successful RecalculateEvolution call. */
     UPROPERTY(BlueprintAssignable, Category = "MX|Evolution|Events")
-    FMXOnEvolutionUpdated OnEvolutionUpdated;
+    FSimpleMulticastDelegate OnEvolutionUpdated;
 
     // =========================================================================
     // Static Batch Utility

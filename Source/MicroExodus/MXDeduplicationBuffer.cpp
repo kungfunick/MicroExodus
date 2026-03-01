@@ -10,7 +10,7 @@ UMXDeduplicationBuffer::UMXDeduplicationBuffer()
     , EntryCount(0)
 {
     // Pre-allocate the buffer to avoid reallocation during gameplay.
-    Buffer.SetNum(DEDUP_BUFFER_SIZE);
+    Buffer.SetNum(MXConstants::DEDUP_BUFFER_SIZE);
 }
 
 void UMXDeduplicationBuffer::Push(const FString& Verb, const FString& Source, const FString& Flavor)
@@ -20,8 +20,8 @@ void UMXDeduplicationBuffer::Push(const FString& Verb, const FString& Source, co
     Buffer[WriteIndex].Source = Source;
     Buffer[WriteIndex].Flavor = Flavor;
 
-    WriteIndex = (WriteIndex + 1) % DEDUP_BUFFER_SIZE;
-    EntryCount = FMath::Min(EntryCount + 1, DEDUP_BUFFER_SIZE);
+    WriteIndex = (WriteIndex + 1) % MXConstants::DEDUP_BUFFER_SIZE;
+    EntryCount = FMath::Min(EntryCount + 1, MXConstants::DEDUP_BUFFER_SIZE);
 }
 
 bool UMXDeduplicationBuffer::IsDuplicate(const FString& Verb, const FString& Source, const FString& Flavor) const
