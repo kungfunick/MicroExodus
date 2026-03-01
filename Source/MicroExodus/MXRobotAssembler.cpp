@@ -114,7 +114,7 @@ void UMXRobotAssembler::GeneratePlaceholderParts(int32 VariantsPerSlot)
     const int32 MaxNames = 12;
     VariantsPerSlot = FMath::Clamp(VariantsPerSlot, 2, MaxNames);
 
-    for (int32 SlotIdx = 0; SlotIdx < static_cast<int32>(EPartSlot::COUNT); ++SlotIdx)
+    for (int32 SlotIdx = 0; SlotIdx < MX_PART_SLOT_COUNT; ++SlotIdx)
     {
         const EPartSlot Slot = static_cast<EPartSlot>(SlotIdx);
 
@@ -154,9 +154,9 @@ FMXAssemblyRecipe UMXRobotAssembler::GenerateRecipe(const FGuid& RobotId, int32 
     Recipe.RobotId = RobotId;
     Recipe.ChassisColor = ChassisColor;
     Recipe.EyeColor = EyeColor;
-    Recipe.SlotPartIds.SetNum(static_cast<int32>(EPartSlot::COUNT));
+    Recipe.SlotPartIds.SetNum(MX_PART_SLOT_COUNT);
 
-    for (int32 SlotIdx = 0; SlotIdx < static_cast<int32>(EPartSlot::COUNT); ++SlotIdx)
+    for (int32 SlotIdx = 0; SlotIdx < MX_PART_SLOT_COUNT; ++SlotIdx)
     {
         const EPartSlot Slot = static_cast<EPartSlot>(SlotIdx);
         const int32 SlotSeed = DeriveSlotSeed(RobotId, Slot);
@@ -177,7 +177,7 @@ FMXAssemblyRecipe UMXRobotAssembler::GenerateRecipe(const FGuid& RobotId, int32 
 
     // Arm mirroring: if the left arm part is mirrorable, use the same variant
     // for the right arm ~40% of the time for visual cohesion.
-    const int32 MirrorSeed = DeriveSlotSeed(RobotId, EPartSlot::COUNT); // Extra seed.
+    const int32 MirrorSeed = DeriveSlotSeed(RobotId, EPartSlot::Auto); // Extra seed.
     FRandomStream MirrorStream(MirrorSeed);
     if (MirrorStream.FRandRange(0.0f, 1.0f) < 0.4f)
     {
@@ -269,7 +269,7 @@ int32 UMXRobotAssembler::GetPartCountForSlot(EPartSlot Slot) const
 int64 UMXRobotAssembler::GetTotalCombinations() const
 {
     int64 Total = 1;
-    for (int32 SlotIdx = 0; SlotIdx < static_cast<int32>(EPartSlot::COUNT); ++SlotIdx)
+    for (int32 SlotIdx = 0; SlotIdx < MX_PART_SLOT_COUNT; ++SlotIdx)
     {
         const int32 Count = GetPartCountForSlot(static_cast<EPartSlot>(SlotIdx));
         if (Count > 0) Total *= static_cast<int64>(Count);
@@ -292,7 +292,7 @@ void UMXRobotAssembler::LogPartPoolSummary() const
     UE_LOG(LogTemp, Log, TEXT("║       ROBOT PART POOL SUMMARY            ║"));
     UE_LOG(LogTemp, Log, TEXT("╠═══════════════════════════════════════════╣"));
 
-    for (int32 i = 0; i < static_cast<int32>(EPartSlot::COUNT); ++i)
+    for (int32 i = 0; i < MX_PART_SLOT_COUNT; ++i)
     {
         const EPartSlot Slot = static_cast<EPartSlot>(i);
         const int32 Count = GetPartCountForSlot(Slot);

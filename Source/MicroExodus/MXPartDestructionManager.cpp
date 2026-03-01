@@ -28,13 +28,13 @@ void UMXPartDestructionManager::InitialiseForLevel(
     {
         FMXDestructionProfile Profile;
         Profile.RobotId = RobotIds[i];
-        Profile.AttachedPartCount = static_cast<int32>(EPartSlot::COUNT);
+        Profile.AttachedPartCount = MX_PART_SLOT_COUNT;
         Profile.bHasLostParts = false;
-        Profile.Parts.SetNum(static_cast<int32>(EPartSlot::COUNT));
+        Profile.Parts.SetNum(MX_PART_SLOT_COUNT);
 
         const FMXAssemblyRecipe& Recipe = (i < Recipes.Num()) ? Recipes[i] : FMXAssemblyRecipe();
 
-        for (int32 SlotIdx = 0; SlotIdx < static_cast<int32>(EPartSlot::COUNT); ++SlotIdx)
+        for (int32 SlotIdx = 0; SlotIdx < MX_PART_SLOT_COUNT; ++SlotIdx)
         {
             FMXPartState& State = Profile.Parts[SlotIdx];
             State.Slot = static_cast<EPartSlot>(SlotIdx);
@@ -103,7 +103,7 @@ FMXDestructionEvent UMXPartDestructionManager::ApplyDamage(
     }
 
     // Auto-target if no slot specified.
-    if (TargetSlot == EPartSlot::COUNT)
+    if (TargetSlot == EPartSlot::Auto)
     {
         // Use robot GUID as seed for deterministic targeting within the same frame.
         FRandomStream TargetStream(static_cast<int32>(RobotId.A ^ RobotId.D));
@@ -351,7 +351,7 @@ EPartSlot UMXPartDestructionManager::AutoTargetSlot(
     float TotalWeight = 0.0f;
     TArray<float> CumulativeWeights;
 
-    for (int32 i = 0; i < static_cast<int32>(EPartSlot::COUNT); ++i)
+    for (int32 i = 0; i < MX_PART_SLOT_COUNT; ++i)
     {
         const FMXPartState& Part = Profile.Parts[i];
 

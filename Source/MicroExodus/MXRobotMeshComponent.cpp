@@ -14,8 +14,8 @@ UMXRobotMeshComponent::UMXRobotMeshComponent()
     // Start ticking at reduced rate — LOD checks don't need every frame.
     PrimaryComponentTick.TickInterval = 0.066f; // ~15 Hz
 
-    PartMeshes.SetNum(static_cast<int32>(EPartSlot::COUNT));
-    PartMaterials.SetNum(static_cast<int32>(EPartSlot::COUNT));
+    PartMeshes.SetNum(MX_PART_SLOT_COUNT);
+    PartMaterials.SetNum(MX_PART_SLOT_COUNT);
 }
 
 void UMXRobotMeshComponent::BeginPlay()
@@ -61,7 +61,7 @@ void UMXRobotMeshComponent::AssembleFromRecipe(
 
     CachedRecipe = Recipe;
 
-    for (int32 SlotIdx = 0; SlotIdx < static_cast<int32>(EPartSlot::COUNT); ++SlotIdx)
+    for (int32 SlotIdx = 0; SlotIdx < MX_PART_SLOT_COUNT; ++SlotIdx)
     {
         if (SlotIdx >= Recipe.SlotPartIds.Num()) continue;
 
@@ -121,7 +121,7 @@ void UMXRobotMeshComponent::AssembleFromRecipe(
     UE_LOG(LogTemp, Log,
         TEXT("MXRobotMeshComponent: Assembled robot %s — %d parts, locomotion=%d."),
         *Recipe.RobotId.ToString(),
-        static_cast<int32>(EPartSlot::COUNT),
+        MX_PART_SLOT_COUNT,
         static_cast<int32>(Recipe.LocomotionType));
 }
 

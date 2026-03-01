@@ -37,8 +37,11 @@ enum class EPartSlot : uint8
     ArmRight    UMETA(DisplayName = "Arm Right"),    // Right tool / manipulator
     Head        UMETA(DisplayName = "Head"),          // Sensor dome, visor, camera eye
 
-    COUNT       UMETA(Hidden)
+    Auto        UMETA(DisplayName = "Auto")  // Used as sentinel for auto-targeting
 };
+
+/** Number of real part slots (excluding the Auto sentinel). */
+static constexpr int32 MX_PART_SLOT_COUNT = 5;
 
 // ---------------------------------------------------------------------------
 // EPartDamageState — per-part visual damage progression

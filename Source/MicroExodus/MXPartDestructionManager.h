@@ -120,7 +120,7 @@ public:
      * @param DamageElement   The hazard element causing damage (for DEMS and visual mark).
      * @param ImpactLocation  World-space hit point.
      * @param ImpactDirection Normalized direction of force.
-     * @param TargetSlot      Specific slot to hit, or EPartSlot::COUNT for auto-target.
+     * @param TargetSlot      Specific slot to hit, or EPartSlot::Auto for auto-target.
      * @param DamageAmount    HP to remove (default 1).
      * @return                The destruction event generated, or default if no damage applied.
      */
@@ -130,7 +130,7 @@ public:
         EHazardElement  DamageElement,
         FVector         ImpactLocation,
         FVector         ImpactDirection,
-        EPartSlot       TargetSlot = EPartSlot::COUNT,
+        EPartSlot       TargetSlot = EPartSlot::Auto,
         int32           DamageAmount = 1);
 
     /**
