@@ -81,7 +81,7 @@ void UMXHatPhysics::AttachHat(AActor* RobotActor, const FGuid& RobotId, int32 Ha
     Instance.HatId            = HatId;
     Instance.HatMeshComponent = HatMesh;
     Instance.WobbleAngle      = FMath::RandRange(-3.0f, 3.0f); // Small initial offset
-    Instance.LingerDuration   = MX::HAT_DEATH_LINGER_TIME;
+    Instance.LingerDuration   = MXConstants::HAT_DEATH_LINGER_TIME;
 
     ActiveInstances.Add(Instance);
 }

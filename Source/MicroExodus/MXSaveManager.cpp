@@ -418,7 +418,7 @@ void UMXSaveManager::HandleHatUnlocked(int32 HatId)
     SaveGame();
 }
 
-void UMXSaveManager::HandleComboDiscovered(TArray<int32> HatIds, int32 UnlockedHatId)
+void UMXSaveManager::HandleComboDiscovered(const TArray<int32>& HatIds, int32 UnlockedHatId)
 {
     UE_LOG(LogTemp, Log, TEXT("UMXSaveManager: Auto-save triggered by OnComboDiscovered."));
     SaveGame();

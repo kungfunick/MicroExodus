@@ -3,6 +3,7 @@
 // Agent 11: UI
 
 #include "MXHUDWidget.h"
+#include "MXCameraPersonality.h"
 #include "Components/TextBlock.h"
 #include "Components/ProgressBar.h"
 #include "Components/VerticalBox.h"

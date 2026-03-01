@@ -33,11 +33,11 @@ void UMXHatStackEconomy::IncrementStack(int32 HatId, int32 Amount, FMXHatCollect
     }
 
     const int32 NewCount = Stack->count + Amount;
-    if (NewCount > MX::MAX_HAT_STACK)
+    if (NewCount > MXConstants::MAX_HAT_STACK)
     {
         UE_LOG(LogTemp, Verbose, TEXT("UMXHatStackEconomy: Hat %d stack capped at %d (attempted %d)."),
-            HatId, MX::MAX_HAT_STACK, NewCount);
-        Stack->count = MX::MAX_HAT_STACK;
+            HatId, MXConstants::MAX_HAT_STACK, NewCount);
+        Stack->count = MXConstants::MAX_HAT_STACK;
     }
     else
     {

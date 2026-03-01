@@ -598,7 +598,7 @@ TArray<int32> UMXHatUnlockChecker::CheckLegendaryUnlocks(
         {
             if (Evt.event_type == EEventType::HatEquipped)
             {
-                DistinctHats.Add(Evt.hat_id);
+                DistinctHats.Add(Evt.hat_worn_id);
             }
         }
         if (DistinctHats.Num() >= 100)

@@ -274,7 +274,7 @@ private:
     void HandleHatUnlocked(int32 HatId);
 
     UFUNCTION()
-    void HandleComboDiscovered(TArray<int32> HatIds, int32 UnlockedHatId);
+    void HandleComboDiscovered(const TArray<int32>& HatIds, int32 UnlockedHatId);
 
     // -------------------------------------------------------------------------
     // Internal Helpers

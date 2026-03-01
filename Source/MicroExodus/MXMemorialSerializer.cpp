@@ -226,6 +226,7 @@ void UMXMemorialSerializer::SerializeEntry(FArchive& Ar, const FMXMemorialEntry&
 FMXMemorialEntry UMXMemorialSerializer::DeserializeEntry(FArchive& Ar)
 {
     FMXMemorialEntry Entry;
+    FMXMemorialEntry& E = Entry;  // alias — serialization uses E throughout
 
     uint32 BlockSize = 0;
     Ar << BlockSize;

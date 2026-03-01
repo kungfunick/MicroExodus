@@ -9,7 +9,7 @@
 #include "Engine/GameInstance.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
-#include "CameraComponent.h"
+#include "Camera/CameraComponent.h"
 
 // ---------------------------------------------------------------------------
 // Constructor

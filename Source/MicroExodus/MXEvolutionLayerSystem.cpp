@@ -6,6 +6,7 @@
 //           Event bus subscription pattern mirrors DEMS and Identity module conventions.
 
 #include "MXEvolutionLayerSystem.h"
+#include "EngineUtils.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"

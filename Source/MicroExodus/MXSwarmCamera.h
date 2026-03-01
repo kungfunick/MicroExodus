@@ -16,7 +16,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Camera/CameraActor.h"
+#include "CameraActor.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "MXTypes.h"
 #include "MXEventData.h"
@@ -69,9 +69,7 @@ struct MICROEXODUS_API FMXCameraZoomEntry
 
 // ---------------------------------------------------------------------------
 // FMXCameraEvent (forward-declared here — defined fully in MXCameraBehaviors.h)
-// ---------------------------------------------------------------------------
-
-struct FMXCameraEvent;
+#include "MXCameraBehaviors.h"
 
 // ---------------------------------------------------------------------------
 // UMXSwarmCamera
