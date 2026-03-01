@@ -44,6 +44,8 @@
  * BeginPlay via IMXRobotProvider and after each event-driven update. The canonical copy
  * always lives in UMXRobotManager — this is a display-side cache only.
  */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMXOnEvolutionUpdated);
+
 UCLASS(ClassGroup=(MicroExodus), meta=(BlueprintSpawnableComponent), BlueprintType)
 class MICROEXODUS_API UMXEvolutionLayerSystem : public UActorComponent, public IMXEvolutionTarget
 {
@@ -150,7 +152,7 @@ public:
 
     /** Broadcast after every successful RecalculateEvolution call. */
     UPROPERTY(BlueprintAssignable, Category = "MX|Evolution|Events")
-    FSimpleMulticastDelegate OnEvolutionUpdated;
+    FMXOnEvolutionUpdated OnEvolutionUpdated;
 
     // =========================================================================
     // Static Batch Utility
