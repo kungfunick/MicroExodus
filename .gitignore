@@ -78,3 +78,6 @@ Engine/Programs/UnrealBuildTool/*
 
 # Ignore files added by Finder on Mac
 *.DS_Store
+
+/Content/Characters
+/Content/Audio
