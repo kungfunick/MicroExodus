@@ -20,6 +20,8 @@
 #include "Components/ActorComponent.h"
 #include "MXTimeDilation.generated.h"
 
+class UMXTiltShiftEffect;
+
 // ---------------------------------------------------------------------------
 // EMXDilationMode
 // ---------------------------------------------------------------------------
