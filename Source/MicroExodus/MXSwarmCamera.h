@@ -122,6 +122,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "MX|Camera|Target")
     void SetSplitTarget(const TArray<FGuid>& GroupA, const TArray<FGuid>& GroupB);
 
+    UFUNCTION(BlueprintCallable, Category = "MX|Camera|Target")
+    void UpdateRobotPosition(const FGuid& RobotId, FVector Position);
+
+    UFUNCTION(BlueprintCallable, Category = "MX|Camera|Target")
+    void UpdateRobotPositions(const TMap<FGuid, FVector>& Positions);
+
     /**
      * Focus the camera on a single robot for an inspect-mode close-up.
      * Camera stays locked until ExitInspectMode() is called.

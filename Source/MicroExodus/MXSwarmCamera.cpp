@@ -425,3 +425,16 @@ void UMXSwarmCamera::ApplyZoomOverride(float ZoomOverride, float DeltaTime)
     CurrentHeight = FMath::FInterpTo(CurrentHeight, ZoomOverride, DeltaTime, ZoomInterpSpeed * 2.0f);
     SpringArm->TargetArmLength = CurrentHeight;
 }
+
+void UMXSwarmCamera::UpdateRobotPosition(const FGuid& RobotId, FVector Position)
+{
+    RobotPositions.Add(RobotId, Position);
+}
+
+void UMXSwarmCamera::UpdateRobotPositions(const TMap<FGuid, FVector>& Positions)
+{
+    for (const auto& Pair : Positions)
+    {
+        RobotPositions.Add(Pair.Key, Pair.Value);
+    }
+}
