@@ -1,0 +1,419 @@
+# MicroExodus — Module Registry (Agents.md)
+
+**Last Updated:** 2026-03-08
+
+---
+
+## Agent 0: Shared Contracts
+
+**Status:** Compiling ✓
+**Files:** MXTypes.h, MXRobotProfile.h, MXHatData.h, MXEventData.h, MXRunData.h, MXEventFields.h, MXSpecData.h, MXInterfaces.h, MXEvents.h, MXConstants.h, MXEvolutionData.h
+
+**Purpose:** All cross-module contracts: enums, structs, interfaces, delegates, constants. Read by every module. Written only by Agent 0.
+
+**Key Types:**
+- `FMXRobotProfile` — full persistent robot data (name, stats, spec, hat, appearance, visual evolution)
+- `FMXEventData` — DEMS event payload (robot_id, event_type, message_text, severity, camera_behavior)
+- `FMXRunData` — complete run record (events, scores, modifiers, tier)
+- `FMXHatData` / `FMXHatDefinition` — hat definitions and collection
+- `FMXSpecData` / `FMXSpecDefinition` — specialisation tree definitions
+
+**Key Interfaces:**
+- `IMXRobotProvider` — GetRobotProfile(FGuid), GetAllRobotProfiles(), GetRobotCount()
+- `IMXHatProvider` — GetHatData(int32), GetCollection(), ConsumeHat(), ReturnHat()
+- `IMXRunProvider` — GetCurrentRunData(), GetRunNumber(), GetCurrentTier()
+- `IMXEventListener` — OnDEMSEvent(FMXEventData)
+- `IMXEvolutionTarget` — ApplyVisualMark(FString, float)
+- `IMXPersistable` — MXSerialize(FArchive&), MXDeserialize(FArchive&)
+
+**Key Constants (MXConstants.h):**
+- MAX_ROBOTS = 100, MAX_HATS = 100, MAX_LEVELS = 20, MAX_TIERS = 6
+- XP_THRESHOLDS[] array (12 entries)
+
+**EventBus Delegates (MXEvents.h):**
+- OnRobotRescued(FGuid, int32 LevelNumber)
+- OnRobotDied(FGuid, FMXEventData)
+- OnRobotSacrificed(FGuid, FMXEventData)
+- OnNearMiss(FGuid, FMXObjectEventFields)
+- OnLevelComplete(int32, TArray\<FGuid\>)
+- OnRunComplete(FMXRunData), OnRunFailed(FMXRunData, int32)
+- OnHatEquipped(FGuid, int32), OnHatLost(FGuid, int32, FMXEventData)
+- OnLevelUp(FGuid, int32)
+- OnSpecChosen(FGuid, ERobotRole, ETier2Spec, ETier3Spec)
+- OnComboDiscovered(TArray\<int32\>, int32)
+- OnHatUnlocked(int32)
+
+**EventBus Access Pattern:**
+```cpp
+UMXEventBusSubsystem* BusSub = GetGameInstance()->GetSubsystem<UMXEventBusSubsystem>();
+UMXEventBus* Bus = BusSub->EventBus;
+Bus->OnRobotDied.AddDynamic(this, &UMyClass::HandleRobotDied);
+```
+
+---
+
+## Agent 1: DEMS (Dynamic Event Messaging System)
+
+**Status:** Compiling ✓
+**Files:** MXEventMessageComponent.h/cpp, MXMessageBuilder.h/cpp, MXMessageDispatcher.h/cpp, MXTemplateSelector.h/cpp, MXDeduplicationBuffer.h/cpp
+
+**Key Functions:**
+- `UMXEventMessageComponent::TriggerDeathEvent(FGuid)` — builds and dispatches death message
+- `UMXEventMessageComponent::TriggerRescueEvent(FGuid, int32)` — rescue message
+- `UMXEventMessageComponent::TriggerSacrificeEvent(FGuid, int32)` — sacrifice message
+- `UMXEventMessageComponent::TriggerNearMissEvent(FGuid)` — near-miss message
+- `UMXMessageBuilder::Initialize(UMXTemplateSelector*, UMXDeduplicationBuffer*)`
+- `UMXTemplateSelector::LoadTemplates()` — loads from DataTables or fallback
+
+**Wiring (from GameInstance::Init):**
+- TemplateSelector->LoadTemplates()
+- MessageBuilder->Initialize(TemplateSelector, DedupBuffer)
+- MessageDispatcher->RegisterListener(RobotManager)
+- MessageDispatcher->RegisterListener(LifeLog)
+
+**Depends On:** IMXRobotProvider, IMXHatProvider
+**Listens To:** OnRobotDied, OnRobotRescued, OnRobotSacrificed, OnNearMiss, OnLevelComplete, OnRunComplete
+**DataTables:** DT_DeathTemplates, DT_RescueTemplates, DT_SacrificeTemplates, DT_NearMissTemplates
+
+---
+
+## Agent 2: Identity
+
+**Status:** Compiling ✓
+**Files:** MXRobotManager.h/cpp, MXNameGenerator.h/cpp, MXPersonalityGenerator.h/cpp, MXLifeLog.h/cpp, MXAgingSystem.h/cpp
+
+**Key Functions:**
+- `UMXRobotManager::Initialize(UMXNameGenerator*, UMXPersonalityGenerator*, UMXLifeLog*, UMXAgingSystem*)` — **requires all four pointers**
+- `UMXRobotManager::CreateRobot(int32 LevelNumber, int32 RunNumber)` → FGuid (invalid if roster full)
+- `UMXRobotManager::RemoveRobot(FGuid, int32 RunNumber)` — archives to DeadRobotArchive
+- `UMXRobotManager::GetRobotProfile_Implementation(FGuid)` → FMXRobotProfile
+- `UMXRobotManager::GetAllRobotProfiles_Implementation()` → TArray\<FMXRobotProfile\>
+- `UMXRobotManager::AddXP(FGuid, int32)` — with level-up check
+- `UMXNameGenerator::GenerateName()` → FString (fallback names if no DataTable)
+- `UMXNameGenerator::ReleaseName(FString, int32)` — returns name to pool with cooldown
+
+**Wiring (from GameInstance::Init):**
+- NameGenerator = NewObject → optional LoadFromDataTable(NamesTable)
+- PersonalityGenerator = NewObject → optional LoadFromDataTable(PersonalitiesTable)
+- LifeLog = NewObject, AgingSystem = NewObject
+- RobotManager->Initialize(NameGen, PersonalityGen, LifeLog, AgingSystem)
+
+**Implements:** IMXRobotProvider, IMXEventListener, IMXPersistable
+**Listens To:** OnRobotDied, OnRobotRescued, OnRobotSacrificed, OnNearMiss, OnLevelComplete, OnRunComplete, OnRunFailed, OnHatEquipped, OnHatLost, OnSpecChosen
+**DataTables:** DT_Names (optional), DT_Personalities (optional)
+
+---
+
+## Agent 3: Hats
+
+**Status:** Compiling ✓
+**Files:** MXHatManager.h/cpp, MXHatStackEconomy.h/cpp, MXComboDetector.h/cpp, MXHatPhysics.h/cpp, MXHatUnlockChecker.h/cpp
+
+**Key Functions:**
+- `UMXHatManager::Initialize(UMXEventBus*, UObject* RobotProviderObject)` — creates sub-components, binds events
+- `UMXHatManager::EquipHat(FGuid RobotId, int32 HatId)` → bool
+- `UMXHatManager::GetHatData_Implementation(int32 HatId)` → FMXHatDefinition
+- `UMXHatManager::GetCollection_Implementation()` → FMXHatCollection
+- `UMXComboDetector::CheckCombos(TArray\<int32\>, FMXHatCollection, TMap)` → TArray\<int32\>
+- `UMXHatUnlockChecker::CheckStandardUnlocks(FMXRunData, TArray\<FMXRobotProfile\>)` → TArray\<int32\>
+
+**Wiring (from GameInstance::Init):**
+- HatManager->Initialize(EventBus, RobotManager.Get())
+
+**Implements:** IMXHatProvider
+**Listens To:** OnRobotDied, OnRunComplete, OnRunFailed, OnLevelComplete
+**DataTables:** DT_HatDefinitions
+
+---
+
+## Agent 4: Evolution (Visual)
+
+**Status:** Compiling ✓
+**Files:** MXEvolutionLayerSystem.h/cpp, MXDecalManager.h/cpp, MXWearShader.h/cpp, MXEvolutionCalculator.h/cpp, MXEvolutionData.h
+
+**Key Functions:**
+- `UMXEvolutionLayerSystem::RecalculateEvolution()` — full pipeline: Calculator → WearShader → DecalManager
+- `UMXEvolutionLayerSystem::ApplyVisualMark_Implementation(FString MarkType, float Intensity)` — DEMS-driven marks
+- `UMXEvolutionCalculator::ComputeFullState(FMXRobotProfile)` → FMXVisualEvolutionState (pure, static)
+- `UMXWearShader::SetWearParameters(UMaterialInstanceDynamic*, FMXVisualEvolutionState)` — push to material
+- `UMXDecalManager::GenerateDecalPlacements(int32 Seed, FMXVisualEvolutionState)` → TArray\<FMXDecalPlacement\>
+
+**Wiring Required:**
+- RobotId (FGuid) — set on the component before BeginPlay
+- BaseMaterial (UMaterialInterface*) — reference to M_RobotMaster
+- TargetMesh — the mesh component that receives the MID
+- Currently `GetRobotProvider()` returns nullptr — needs wiring to GameInstance
+
+**Implements:** IMXEvolutionTarget
+**Listens To:** OnLevelUp, OnSpecChosen, OnRunComplete, OnNearMiss
+
+---
+
+## Agent 5: Specialisation
+
+**Status:** Compiling ✓
+**Files:** MXSpecTree.h/cpp, MXRoleComponent.h/cpp
+
+**Key Functions:**
+- `UMXSpecTree::Initialize(UDataTable*, TScriptInterface<IMXRobotProvider>, UMXEventBus*)`
+- `UMXSpecTree::GetAvailableChoices(FMXRobotProfile)` → TArray\<FMXSpecChoice\>
+- `UMXSpecTree::ApplyRoleChoice(FGuid, ERobotRole)` — broadcasts OnSpecChosen
+- `UMXSpecTree::ApplyTier2Choice(FGuid, ETier2Spec)`, `ApplyTier3Choice(FGuid, ETier3Spec)`
+- Role unlock at Lv5, Tier2 at Lv10, Tier3 at Lv20, Mastery at Lv35
+- Roles: Scout, Guardian, Engineer → 2 Tier2 each → 2 Tier3 each = 12 total paths
+
+**Wiring (from GameInstance::Init):**
+- SpecTree->Initialize(SpecTreeTable, RobotProviderSI, EventBus)
+
+**Implements:** IMXPersistable
+**Listens To:** OnLevelUp, OnRunComplete, OnRunFailed
+**DataTables:** DT_SpecTree
+
+---
+
+## Agent 6: Roguelike
+
+**Status:** Compiling ✓
+**Files:** MXRunManager.h/cpp, MXSpawnManager.h/cpp, MXRescueMechanic.h/cpp, MXSwarmGate.h/cpp (+ gate subclasses), MXHazardBase.h/cpp (+ 10 hazard subclasses), MXEventBusSubsystem.h/cpp
+
+**Key Functions:**
+- `UMXRunManager::Initialise(UMXEventBus*, TScriptInterface<IMXRobotProvider>, TScriptInterface<IMXHatProvider>, UDataTable* TierTable, UDataTable* XPTable)`
+- `UMXRunManager::StartRun(ETier, TArray<FGuid> SelectedRobots, TArray<int32> EquippedHats, TArray<FString> Modifiers)`
+- `UMXRunManager::AdvanceLevel()`, `EndRun(ERunOutcome)`
+- `UMXRunManager::RecordEvent(FMXEventData)`, `GetCurrentRunData()`
+- `UMXSpawnManager::SpawnRescueRobotsForLevel(int32, ETier, FMXModifierEffects)` → TArray\<FGuid\>
+- `UMXEventBusSubsystem::Initialize()` — creates the shared UMXEventBus
+
+**Wiring (from GameInstance::Init):**
+- EventBus obtained via GetSubsystem\<UMXEventBusSubsystem\>()->EventBus
+- RunManager->Initialise(EventBus, RobotProviderSI, HatProviderSI, TierTable, XPTable)
+
+**Implements:** IMXRunProvider, IMXPersistable
+**Listens To:** OnRobotDied, OnRobotSacrificed, OnRobotRescued, OnNearMiss, OnHatEquipped, OnHatLost
+**Hazard Subclasses:** Furnace, Crusher, SpikeTrap, Pit, LavaPool, Conveyor, BuzzSaw, IceFloor, EMPField, FallingDebris
+**Gate Subclasses:** WeightPlate, SwarmDoor, ChainStation, Sacrifice
+
+---
+
+## Agent 7: Camera
+
+**Status:** Compiling ✓ | Patched Phase 2A
+**Files:** MXSwarmCamera.h/cpp, MXTiltShiftEffect.h/cpp, MXTimeDilation.h/cpp, MXCameraBehaviors.h/cpp, MXCameraPersonality.h/cpp
+
+**Key Functions:**
+- `UMXSwarmCamera::SetSwarmTarget(TArray<FGuid>)` — set tracked robots
+- `UMXSwarmCamera::UpdateRobotPosition(FGuid, FVector)` — **Phase 2A addition**, feeds positions
+- `UMXSwarmCamera::UpdateRobotPositions(TMap<FGuid, FVector>)` — batch version
+- `UMXSwarmCamera::UpdateZoom(int32 SwarmCount, float DeltaTime)` — drive zoom from count
+- `UMXSwarmCamera::EnterInspectMode(FGuid)` / `ExitInspectMode()`
+- `UMXSwarmCamera::QueueCameraEvent(FMXCameraEvent)` — priority queue
+- `UMXSwarmCamera::SetCameraMode(ECameraPersonalityMode)` — Director/Operator/Locked/Replay
+- `UMXTiltShiftEffect::SetPreset(ETiltShiftPreset, float TransitionTime)` — Diorama/Cinematic/Wide/Report/Off
+- `UMXTiltShiftEffect::ScaleToZoomLevel(float CameraHeight)`
+- `UMXTimeDilation::TriggerAutoDilation(EMXDilationMode, float Duration)`
+
+**Wiring Required (on host actor / camera rig):**
+- `SwarmCamera->SpringArm` (USpringArmComponent*) — **must be set by host actor constructor**
+- `SwarmCamera->CameraActor` (ACameraActor*) — optional, unused if using UCameraComponent
+- `TiltShiftEffect->PostProcessComponent` — **auto-discovers** via FindComponentByClass in BeginPlay
+- `TimeDilation->TiltShiftEffect` (UMXTiltShiftEffect*) — **must be set explicitly**
+
+**Zoom Table (GDD):**
+| Robots | Height (cm) |
+|--------|-------------|
+| 1–5 | 300 |
+| 6–15 | 600 |
+| 16–30 | 1000 |
+| 31–50 | 1400 |
+| 51–75 | 1700 |
+| 76–100 | 2000 |
+
+**Camera Modes:** Director (all events), Operator (Epic+Cinematic only), Locked (no events), Replay (all, extended)
+
+**Depends On:** MXConstants
+**Depended On By:** MXCameraBehaviors, MXCameraRig (Phase 2A)
+
+---
+
+## Agent 8: Swarm (Logic Only — No Files Yet)
+
+**Status:** Not implemented as separate module. Swarm logic is distributed across RunManager, SpawnManager, and the planned AMXRobotActor tick.
+
+**Intended Responsibility:** Robot AI movement, flocking behaviors, collision avoidance, position reporting to camera, swarm splitting/merging.
+
+---
+
+## Agent 9: Reports
+
+**Status:** Compiling ✓
+**Files:** MXRunReportEngine.h/cpp, MXStatCompiler.h/cpp, MXHighlightScorer.h/cpp, MXAwardSelector.h/cpp, MXReportNarrator.h/cpp, MXRunReportUI.h/cpp
+
+**Key Functions:**
+- `UMXRunReportEngine::Initialize(UMXEventBus*)`
+- `UMXRunReportEngine::GenerateReport(FMXRunData, TArray<FMXRobotProfile>)` → FMXRunReport
+- `UMXStatCompiler::CompileStats(FMXRunData, TArray<FMXRobotProfile>)` → FMXCompiledStats
+- `UMXHighlightScorer::ScoreHighlights(FMXCompiledStats)` → TArray\<FMXHighlight\>
+- `UMXAwardSelector::SelectAwards(FMXCompiledStats, TArray<FMXRobotProfile>)` → TArray\<FMXAward\>
+
+**Listens To:** OnRunComplete, OnRunFailed
+
+---
+
+## Agent 10: Persistence
+
+**Status:** Compiling ✓
+**Files:** MXSaveManager.h/cpp
+
+**Key Functions:**
+- `UMXSaveManager::Initialize(UMXEventBus*)`
+- `UMXSaveManager::RegisterPersistable(TScriptInterface<IMXPersistable>)` — call for each module
+- `UMXSaveManager::SaveGame()` — serialises all registered modules, CRC32 validation, 3-slot rotation
+- `UMXSaveManager::LoadGame()` → bool
+- `UMXSaveManager::GetSaveMetadata()` → FMXSaveMetadata (lightweight header read)
+
+**Save Slot Strategy:** save_latest, save_backup1, save_backup2 (rolling)
+**Serialisation Order:** Identity → Hats → Roguelike → Reports → Specialization
+
+**Listens To:** OnRunComplete, OnRunFailed, OnHatUnlocked, OnComboDiscovered
+
+---
+
+## Agent 11: UI / HUD
+
+**Status:** Compiling ✓
+**Files:** MXHUDWidget.h/cpp, MXRunReportUI.h/cpp
+
+**Key Functions:**
+- `UMXHUDWidget::UpdateSwarmCounter(int32)`, `UpdateLevelIndicator(int32)`, `UpdateTimer(float)`
+- `UMXHUDWidget::ShowToast(FMXEventData)` — event notification popup
+- `UMXHUDWidget::OnMinimapDataUpdated(TArray<FVector>, TArray<FVector>, TArray<FVector>)`
+- `UMXRunReportUI::DisplayReport(FMXRunReport)` — full run report widget
+
+**Wiring:** Widget Blueprints (WBP_HUD, WBP_RunReport) bind to C++ via meta=(BindWidget)
+
+---
+
+## Agent 12: Procedural Generation
+
+**Status:** Compiling ✓
+**Files:** MXProceduralGen.h/cpp, MXRoomGenerator.h/cpp, MXHazardPlacer.h/cpp, MXProceduralData.h
+
+**Key Functions:**
+- `UMXProceduralGen::Initialize(UDataTable* HazardDataTable)`
+- `UMXProceduralGen::GenerateRunLayout(int64 MasterSeed, ETier, TArray<FString> Modifiers)` → FMXRunLayout
+- `UMXProceduralGen::GetLevelLayout(int32 LevelNumber)` → FMXLevelLayout
+- `UMXRoomGenerator::GenerateRooms(int64 LevelSeed, int32 Level, ETier)` → TArray\<FMXRoomDef\>
+- `UMXRoomGenerator::ComputeCriticalPath(TArray<FMXRoomDef>)` → TArray\<int32\>
+- `UMXHazardPlacer::PlaceHazards(TArray<FMXRoomDef>, FMXLevelConditions, int64)` → TArray\<FMXHazardPlacement\>
+
+**Pacing Curve:** Levels 1–3 intro, 4–7 rising, 8–12 crisis, 13–16 escalation, 17–19 climax, 20 finale
+
+**Key Data Structures:**
+- `FMXRunLayout` — 20 FMXLevelLayouts, master seed, tier, active modifiers
+- `FMXLevelLayout` — rooms, hazard placements, conditions, rescue count
+- `FMXRoomDef` — room type, size, connections, element theme
+- `FMXHazardPlacement` — hazard type, position, element, speed multiplier
+
+---
+
+## Agent 13: Robot Assembly
+
+**Status:** Compiling ✓
+**Files:** MXRobotAssembler.h/cpp, MXRobotMeshComponent.h/cpp, MXPartDestructionManager.h/cpp, MXRobotAssemblyData.h
+
+**Key Functions:**
+- `UMXRobotAssembler::InitialiseFromDataTable(UDataTable*)` — loads part definitions
+- `UMXRobotAssembler::GeneratePlaceholderParts(int32 VariantsPerSlot)` — for testing
+- `UMXRobotAssembler::BuildRecipeFromProfile(FMXRobotProfile)` → FMXAssemblyRecipe
+- `UMXRobotMeshComponent::AssembleFromRecipe(FMXAssemblyRecipe, UMXRobotAssembler*)`
+- `UMXPartDestructionManager::ApplyDamage(FGuid, EPartSlot, int32)` → FMXDamageResult
+
+**Part Slots:** Locomotion, Body, ArmLeft, ArmRight, Head (5 modular sockets)
+**LOD Strategy:** Full (5-part) < 2000cm, Simplified (3-part) 2000–5000cm, Impostor > 5000cm
+**Socket Names:** socket_locomotion, socket_body, socket_arm_l, socket_arm_r, socket_head
+
+---
+
+## Agent 14: Robot Factory
+
+**Status:** Compiling ✓
+**Files:** MXRobotFactory.h/cpp, MXRobotCodec.h/cpp, MXRobotFactoryData.h
+
+**Key Functions:**
+- `UMXRobotFactory::Initialize(UMXRobotManager*, UMXRobotAssembler*, UMXNameGenerator*, UMXPersonalityGenerator*)`
+- `UMXRobotFactory::BuildLobbyPool(TArray<FGuid> Survivors, TArray<FGuid> Rescued, int32 Level, ETier, TArray<FMXSalvageDrop>)`
+- `UMXRobotFactory::ToggleCandidateSelection(FGuid)` → bool
+- `UMXRobotFactory::GetSelectedRobots()` → TArray\<FGuid\> (max 5)
+- `UMXRobotFactory::RedeemCode(FString)` → bool
+- `UMXRobotFactory::GetRobotCode(FGuid)` → FString (Base32 Crockford from GUID)
+- `UMXRobotFactory::PurchaseUpgrade(EFactoryUpgrade)` → bool
+
+**Delegates:**
+- OnLobbyPoolReady(FMXLobbyPool)
+- OnCodeRedeemed(FString, FMXRecruitCandidate)
+- OnCodeRejected(FString, FString Reason)
+- OnUpgradePurchased(EFactoryUpgrade, int32 NewLevel)
+
+**Upgrade Types:** BatchSize, CodeTerminal, RecruitDiversity, SalvageEfficiency, CodeSlots
+
+---
+
+## Phase 2A Additions (New in this phase)
+
+**Status:** Working (with known issues listed in Claude.md)
+**Files:** MXRobotActor.h/cpp, MXCameraRig.h/cpp, MXSpawnTestGameMode.h/cpp
+
+### AMXRobotActor (ACharacter subclass)
+- `BindToProfile(FGuid, FString)` — sets RobotId, RobotName, updates text
+- `RobotScale` UPROPERTY — default 0.20
+- `SkeletalMeshAsset` — optional TSoftObjectPtr for C++ mesh assignment
+- `NameTextComponent` (UTextRenderComponent) — billboards toward camera each tick
+- Mesh alignment done in BeginPlay (not constructor — BP serialisation override)
+- GravityScale = 0 (workaround for collision-less test floor)
+
+### AMXCameraRig (AActor)
+- Constructor creates and wires: SpringArm → Camera, PostProcess, SwarmCamera, TiltShiftEffect, TimeDilation
+- `SwarmCamera->SpringArm` wired in constructor
+- `TimeDilation->TiltShiftEffect` wired in constructor
+- TiltShiftEffect auto-discovers PostProcess in BeginPlay
+- SetViewTargetWithBlend currently **disabled** for debugging
+
+### AMXSpawnTestGameMode (AGameModeBase)
+- Gets UMXGameInstance → UMXRobotManager
+- Calls CreateRobot() N times, spawns AMXRobotActor in circle
+- Spawns AMXCameraRig, calls SetSwarmTarget + UpdateRobotPosition
+- Configurable: NumRobots (8), SpawnRadius (200), FloorZ (0), RobotActorClass, CameraRigClass
+
+---
+
+## Planned Modules (Not Started)
+
+### Phase 2B: RTS Camera Controller
+**Purpose:** Strategy-game camera controls replacing free-fly PIE camera.
+**Planned Class:** `AMXRTSPlayerController` or `AMXRTSPawn`
+**Features:** Scroll wheel zoom (drives SpringArm TargetArmLength), right-click drag to rotate (Yaw on rig), WASD/edge pan, middle-click drag to pan. Feeds into existing UMXSwarmCamera spring arm.
+**Depends On:** AMXCameraRig (Phase 2A), UMXSwarmCamera
+**Wiring:** Replaces default PlayerController. Re-enables SetViewTargetWithBlend on CameraRig.
+
+### Phase 2C: Selection System
+**Purpose:** Click-select, box-select, Ctrl+number control groups for robots.
+**Planned Class:** `UMXSelectionManager` (ActorComponent on controller)
+**Features:** Left-click individual select, click-drag box select, Shift+click multi-select, Ctrl+1-9 assign groups, 1-9 recall groups, double-click select all of type.
+**Depends On:** AMXRTSPlayerController (Phase 2B), AMXRobotActor
+**Output:** TArray\<FGuid\> SelectedRobots, delegate OnSelectionChanged
+
+### Phase 2D: Name Display (Hover/Selection)
+**Purpose:** Show robot names only on mouse hover or when selected.
+**Planned Changes:** Modify AMXRobotActor::NameTextComponent visibility logic. Hidden by default. Show on: hover (raytrace from cursor), selected (from SelectionManager), group selected.
+**Depends On:** UMXSelectionManager (Phase 2C)
+
+### Phase 2E: Procedural Floor
+**Purpose:** Replace manual Plane mesh with procedurally generated test floor from MXProceduralGen.
+**Approach:** Use UMXProceduralGen::GenerateRunLayout() to get FMXLevelLayout, spawn floor geometry from FMXRoomDef array. Start with simple boxes/planes per room, upgrade to tileset later.
+**Depends On:** UMXProceduralGen (Agent 12 — already exists)
+
+### Phase 2F: Robot Spawn UI
+**Purpose:** In-game UI for adding robots with + button, selecting type, viewing/editing stats.
+**Planned Class:** `UMXSpawnTestWidget` (UUserWidget)
+**Features:** + button spawns a new robot via RobotManager::CreateRobot(). Type picker (role assignment). Stat panel reads FMXRobotProfile. Edit capabilities for testing.
+**Depends On:** UMXRobotManager (Agent 2), UMXSpecTree (Agent 5), AMXRobotActor
