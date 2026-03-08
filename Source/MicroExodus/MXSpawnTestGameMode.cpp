@@ -4,6 +4,7 @@
 #include "MXSpawnTestGameMode.h"
 #include "MXRobotActor.h"
 #include "MXCameraRig.h"
+#include "MXRTSPlayerController.h"
 #include "MXGameInstance.h"
 #include "MXRobotManager.h"
 #include "MXRobotProfile.h"
@@ -20,6 +21,10 @@ AMXSpawnTestGameMode::AMXSpawnTestGameMode()
     // Default classes — can be overridden in Blueprint or World Settings.
     RobotActorClass = AMXRobotActor::StaticClass();
     CameraRigClass  = AMXCameraRig::StaticClass();
+    PlayerControllerClass = AMXRTSPlayerController::StaticClass();
+
+    // No default pawn — the RTS controller drives the CameraRig directly.
+    DefaultPawnClass = nullptr;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,17 +143,13 @@ void AMXSpawnTestGameMode::BeginPlay()
     UE_LOG(LogTemp, Log, TEXT("[MXSpawnTest] CameraRig spawned at (%.0f, %.0f, %.0f)."),
            CameraSpawnPos.X, CameraSpawnPos.Y, CameraSpawnPos.Z);
 
-    // ---- Step 5: Wire camera tracking ----
+    // ---- Step 5: Wire camera — initial position only, then hand off to RTS controller ----
 
     UMXSwarmCamera* SwarmCamera = CameraRig->GetSwarmCamera();
     if (SwarmCamera)
     {
-        // Tell the camera which robots to track.
+        // Feed robot positions for future use (inspect mode, events, etc.).
         SwarmCamera->SetSwarmTarget(RobotIds);
-
-        // Feed initial positions so the camera knows where each robot is.
-        // UMXSwarmCamera::RobotPositions is private — we use UpdateRobotPosition()
-        // (added in Phase 2A patch to MXSwarmCamera).
         for (const AMXRobotActor* Robot : SpawnedRobots)
         {
             if (Robot)
@@ -157,10 +158,25 @@ void AMXSpawnTestGameMode::BeginPlay()
             }
         }
 
-        // Trigger initial zoom for the swarm count.
-        SwarmCamera->UpdateZoom(RobotIds.Num(), 0.01f);
+        // Position the rig at the swarm centroid so the camera starts centered.
+        FVector Centroid = FVector::ZeroVector;
+        for (const AMXRobotActor* Robot : SpawnedRobots)
+        {
+            if (Robot) Centroid += Robot->GetActorLocation();
+        }
+        if (SpawnedRobots.Num() > 0)
+        {
+            Centroid /= static_cast<float>(SpawnedRobots.Num());
+        }
+        CameraRig->SetActorLocation(FVector(Centroid.X, Centroid.Y, CameraRigZ));
 
-        UE_LOG(LogTemp, Log, TEXT("[MXSpawnTest] SwarmCamera tracking %d robots."), RobotIds.Num());
+        // Disable SwarmCamera tick — RTS controller now owns camera movement.
+        // SwarmCamera's TickPositionTracking would fight the RTS pan/zoom.
+        // Re-enable later when swarm tracking is needed during gameplay.
+        SwarmCamera->SetComponentTickEnabled(false);
+
+        UE_LOG(LogTemp, Log, TEXT("[MXSpawnTest] SwarmCamera positioned at centroid (%.0f, %.0f), tick DISABLED — RTS controller active."),
+               Centroid.X, Centroid.Y);
     }
     else
     {

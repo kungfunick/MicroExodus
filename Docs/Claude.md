@@ -16,24 +16,29 @@ The C++ engine handles all game logic — calculations, profiles, events, proced
 
 All cross-module communication uses: events (MXEvents.h delegates), interfaces (MXInterfaces.h), and DataTables. No module directly references another module's concrete class — they communicate through the EventBus and provider interfaces.
 
-## Current State (Phase 2A)
+## Current State (Phase 2B)
 
 **Compiling:** All 120+ source files compile after adding `class UMXTiltShiftEffect;` forward declaration to MXTimeDilation.h.
 
-**Phase 2A (In Progress):** Blueprint-to-C++ integration. First visible test of the engine:
+**Phase 2A (Complete):** Blueprint-to-C++ integration:
 - AMXRobotActor spawning with names from Identity module ✓
-- AMXCameraRig with SpringArm + TiltShift ✓ (view target disabled for debugging)
+- AMXCameraRig with SpringArm + TiltShift ✓
 - AMXSpawnTestGameMode wiring GameInstance → RobotManager → spawn ✓
 - MXSwarmCamera patched with UpdateRobotPosition() ✓
 - Test level L_SpawnTest with BP_MXSpawnTestGameMode ✓
 
+**Phase 2B (In Progress):** RTS Camera Controller:
+- AMXRTSPlayerController with scroll zoom, right-click rotate, WASD pan, edge pan, middle-drag pan ✓
+- SwarmCamera tick disabled during RTS mode (prevents fighting pan) ✓
+- GameMode sets PlayerControllerClass and DefaultPawnClass = nullptr ✓
+
 **Known Issues:**
-- Camera not yet RTS-style (no scroll zoom, right-click rotate, edge pan)
 - No robot selection system (box select, click, control groups)
 - Name text display needs work (show on hover/selection only, billboard fix)
 - Test floor is a manual Plane mesh — should use procedural generation
 - Robots in T-pose (no AnimBP assigned yet)
 - GravityScale set to 0 as workaround (floor plane lacks collision)
+- Scroll wheel zoom uses IsInputKeyDown which may need tuning (could miss fast scrolls)
 
 ## File Structure
 
@@ -80,7 +85,7 @@ Core, CoreUObject, Engine, InputCore, Json, JsonUtilities, UMG, Slate, SlateCore
 ## Planned Features (Not Started)
 
 See Agents.md for full module details. Upcoming work:
-- **Phase 2B:** RTS camera controller (scroll zoom, right-click rotate, WASD pan)
+- ~~**Phase 2B:** RTS camera controller~~ ✓
 - **Phase 2C:** Robot selection system (box select, click, Ctrl+number groups)
 - **Phase 2D:** Name display on hover/selection only
 - **Phase 2E:** Procedural floor generation (wire MXProceduralGen to test level)

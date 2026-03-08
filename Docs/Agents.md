@@ -389,11 +389,28 @@ Bus->OnRobotDied.AddDynamic(this, &UMyClass::HandleRobotDied);
 ## Planned Modules (Not Started)
 
 ### Phase 2B: RTS Camera Controller
-**Purpose:** Strategy-game camera controls replacing free-fly PIE camera.
-**Planned Class:** `AMXRTSPlayerController` or `AMXRTSPawn`
-**Features:** Scroll wheel zoom (drives SpringArm TargetArmLength), right-click drag to rotate (Yaw on rig), WASD/edge pan, middle-click drag to pan. Feeds into existing UMXSwarmCamera spring arm.
-**Depends On:** AMXCameraRig (Phase 2A), UMXSwarmCamera
-**Wiring:** Replaces default PlayerController. Re-enables SetViewTargetWithBlend on CameraRig.
+**Status:** Complete ✓
+**Files:** MXRTSPlayerController.h/cpp
+
+**AMXRTSPlayerController (APlayerController subclass)**
+- `bShowMouseCursor = true`, `bEnableClickEvents = true`, `bEnableMouseOverEvents = true`
+- Finds AMXCameraRig via TActorIterator in BeginPlay, calls SetViewTargetWithBlend
+- `HandleZoom()` — scroll wheel drives SpringArm TargetArmLength, speed scales with zoom level
+- `HandleRotation()` — right-click drag rotates rig Yaw
+- `HandleKeyboardPan()` — WASD/Arrows pan on XY, speed scales with zoom
+- `HandleEdgePan()` — auto-pan when cursor near screen edges (2% threshold)
+- `HandleDragPan()` — middle-click drag-to-pan (inverted for grab feel)
+- `GetPlanarDirections()` — camera-relative forward/right projected onto XY plane
+- All input via raw polling in PlayerTick (no Enhanced Input dependency)
+
+**Wiring:**
+- Set as PlayerControllerClass in AMXSpawnTestGameMode constructor
+- DefaultPawnClass = nullptr (no pawn to fight for input)
+- SwarmCamera tick disabled after initial centroid positioning (prevents fighting RTS pan)
+
+**Config UPROPERTYs:** ZoomSpeed(50), MinZoom(100), MaxZoom(3000), ZoomInterpSpeed(6), PanSpeed(800), EdgePanSpeed(600), EdgePanThreshold(0.02), RotateSpeed(0.3), DragPanSpeed(2)
+
+**Depends On:** AMXCameraRig (Phase 2A)
 
 ### Phase 2C: Selection System
 **Purpose:** Click-select, box-select, Ctrl+number control groups for robots.
