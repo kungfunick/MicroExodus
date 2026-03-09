@@ -1,8 +1,10 @@
-// MXSpawnTestGameMode.h — Phase 2A: Spawn Test GameMode
-// Created: 2026-03-06
-// Purpose: Minimal GameMode for the L_SpawnTest level.
-//          Spawns N miniature robots, assigns them names from the
-//          Identity module, spawns the camera rig, and wires everything.
+// MXSpawnTestGameMode.h — Phase 2C-Move Update
+// Originally created: Phase 2A
+// Updated: 2026-03-09 — Integrated AMXTestFloorGenerator, removed GravityScale hack,
+//   spawns robots on procedural floor surface.
+//
+// Test game mode that spawns robots via UMXRobotManager and places them on a
+// procedurally generated floor. Uses AMXRTSPlayerController for camera + selection.
 
 #pragma once
 
@@ -10,24 +12,16 @@
 #include "GameFramework/GameModeBase.h"
 #include "MXSpawnTestGameMode.generated.h"
 
+// Forward declarations
 class AMXRobotActor;
 class AMXCameraRig;
-class UMXGameInstance;
+class AMXTestFloorGenerator;
 class UMXRobotManager;
 
-/**
- * AMXSpawnTestGameMode
- * Drop-in GameMode for L_SpawnTest. Set as the level's GameMode Override
- * in World Settings, or set as the project default for testing.
- *
- * In BeginPlay:
- *   1. Gets UMXGameInstance → UMXRobotManager
- *   2. Creates N robot profiles via CreateRobot()
- *   3. Spawns AMXRobotActor at staggered positions on the test floor
- *   4. Binds each actor to its profile (GUID + name)
- *   5. Spawns AMXCameraRig and tells UMXSwarmCamera to track all robots
- *   6. Feeds initial robot positions to the camera
- */
+// ---------------------------------------------------------------------------
+// AMXSpawnTestGameMode
+// ---------------------------------------------------------------------------
+
 UCLASS(BlueprintType, Blueprintable)
 class MICROEXODUS_API AMXSpawnTestGameMode : public AGameModeBase
 {
@@ -37,55 +31,71 @@ public:
 
     AMXSpawnTestGameMode();
 
-    // =========================================================================
-    // Configuration
-    // =========================================================================
-
-    /** Number of robots to spawn. Default 8. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest")
-    int32 NumRobots = 8;
-
-    /** Class to spawn for each robot. Default: AMXRobotActor. Override for BP child. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest")
-    TSubclassOf<AMXRobotActor> RobotActorClass;
-
-    /** Class to spawn for the camera rig. Default: AMXCameraRig. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest")
-    TSubclassOf<AMXCameraRig> CameraRigClass;
-
-    /**
-     * Spawn area radius (cm). Robots are placed in a circle on the XY plane.
-     * Default 200cm — at 0.20 robot scale, this gives comfortable spacing.
-     */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest")
-    float SpawnRadius = 200.0f;
-
-    /**
-     * Height at which the camera rig is placed (Z offset from the floor).
-     * The SpringArm provides additional height via arm length + pitch.
-     * Default 0 — rig sits at floor level, spring arm does the elevation.
-     */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest")
-    float CameraRigZ = 0.0f;
-
-    /** Z coordinate of the spawn floor plane. Default 0. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest")
-    float FloorZ = 0.0f;
-
 protected:
 
     virtual void BeginPlay() override;
 
+public:
+
+    // -------------------------------------------------------------------------
+    // Config
+    // -------------------------------------------------------------------------
+
+    /** Number of robots to spawn for testing. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest")
+    int32 NumRobots = 8;
+
+    /** Class to use for robot actors. Override in Blueprint if needed. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest")
+    TSubclassOf<AMXRobotActor> RobotActorClass;
+
+    /** Class to use for camera rig. Override in Blueprint if needed. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest")
+    TSubclassOf<AMXCameraRig> CameraRigClass;
+
+    /** Class to use for floor generator. Override in Blueprint if needed. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest")
+    TSubclassOf<AMXTestFloorGenerator> FloorGeneratorClass;
+
+    // ---- Floor Config (passed to generator if using default class) ----
+
+    /** Floor grid size X. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest|Floor")
+    int32 FloorGridX = 10;
+
+    /** Floor grid size Y. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest|Floor")
+    int32 FloorGridY = 10;
+
+    /** Floor tile size in cm. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest|Floor")
+    float FloorTileSize = 200.0f;
+
 private:
 
-    /** Spawned robot actors — kept for reference / cleanup. */
-    UPROPERTY()
-    TArray<TObjectPtr<AMXRobotActor>> SpawnedRobots;
+    // -------------------------------------------------------------------------
+    // Spawned References
+    // -------------------------------------------------------------------------
 
-    /** The spawned camera rig. */
     UPROPERTY()
-    TObjectPtr<AMXCameraRig> CameraRig;
+    TArray<AMXRobotActor*> SpawnedRobots;
 
-    /** Calculate spawn positions in a circle on the XY plane. */
-    TArray<FVector> CalculateSpawnPositions(int32 Count, float Radius, float Z) const;
+    UPROPERTY()
+    TObjectPtr<AMXCameraRig> SpawnedCameraRig;
+
+    UPROPERTY()
+    TObjectPtr<AMXTestFloorGenerator> SpawnedFloor;
+
+    // -------------------------------------------------------------------------
+    // Internal
+    // -------------------------------------------------------------------------
+
+    /** Spawn the floor generator and build the floor. */
+    void SpawnFloor();
+
+    /** Spawn robot actors using the Identity module. */
+    void SpawnRobots();
+
+    /** Spawn camera rig and configure it. */
+    void SpawnCamera();
 };

@@ -1,13 +1,16 @@
-// MXRobotActor.cpp — Phase 2A: Robot Actor for Spawn Test
-// Created: 2026-03-06
+// MXRobotActor.cpp — Phase 2C-Move Update
+// Originally created: Phase 2A
+// Updated: 2026-03-09
 
 #include "MXRobotActor.h"
-#include "Components/CapsuleComponent.h"
 #include "Components/TextRenderComponent.h"
-#include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Kismet/GameplayStatics.h"
-#include "Engine/SkeletalMesh.h"
+#include "Camera/CameraComponent.h"
 
 // ---------------------------------------------------------------------------
 // Constructor
@@ -17,43 +20,121 @@ AMXRobotActor::AMXRobotActor()
 {
     PrimaryActorTick.bCanEverTick = true;
 
-    // ---- Capsule ----
-    // Default ACharacter capsule is 34 radius, 88 half-height (for ~180cm human).
-    // We'll scale the whole actor in BeginPlay, so keep standard capsule defaults.
-    // After 0.20 scale: effective radius ~6.8cm, half-height ~17.6cm → ~35cm tall robot.
+    // ---- Capsule sizing for miniaturised robot ----
+    // Default mannequin is ~180cm. At 0.20 scale = ~36cm.
+    // Capsule half-height ~18cm, radius ~8cm at scale.
+    GetCapsuleComponent()->InitCapsuleSize(8.0f, 18.0f);
 
-    // NOTE: Mesh alignment (Z offset, Yaw rotation) is done in BeginPlay, NOT here.
-    // Blueprint child classes serialize component transforms that override constructor values.
-
-    // ---- Floating Name Text ----
-    // Positioned well above the mesh head. The capsule half-height is 88, so the
-    // mannequin head is at roughly Z=80 in actor-local space.
-    // Z=130 puts the text about 50 units above the head (unscaled).
-    // At 0.20 actor scale, that's ~26cm world above origin, ~10cm above head.
-    NameTextComponent = CreateDefaultSubobject<UTextRenderComponent>(TEXT("NameText"));
-    NameTextComponent->SetupAttachment(RootComponent);
-    NameTextComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 130.0f));
-    NameTextComponent->SetHorizontalAlignment(EHTA_Center);
-    NameTextComponent->SetVerticalAlignment(EVRTA_TextCenter);
-    NameTextComponent->SetWorldSize(80.0f);  // At 0.20 scale → effective ~16 world units
-    NameTextComponent->SetTextRenderColor(FColor::Cyan);
-    NameTextComponent->SetText(FText::FromString(TEXT("???")));
-
-    // Don't let the text cast shadows.
-    NameTextComponent->SetCastShadow(false);
-
-    // ---- Movement ----
-    // For the spawn test, robots are static. Disable gravity so they don't
-    // fall through floors that lack collision (basic Plane mesh has none).
-    if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+    // ---- Character Movement ----
+    UCharacterMovementComponent* CMC = GetCharacterMovement();
+    if (CMC)
     {
-        MoveComp->DefaultLandMovementMode = MOVE_Walking;
-        MoveComp->GravityScale = 0.0f;
+        CMC->MaxWalkSpeed = 150.0f;
+        CMC->bOrientRotationToMovement = true;
+        CMC->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
+        CMC->GravityScale = 1.0f;  // Phase 2C fix: proper gravity now that floor has collision.
+        CMC->MaxAcceleration = 800.0f;
+        CMC->BrakingDecelerationWalking = 400.0f;
+        CMC->bUseControllerDesiredRotation = false;
+    }
+
+    // ---- Name Text Component ----
+    NameTextComponent = CreateDefaultSubobject<UTextRenderComponent>(TEXT("NameText"));
+    if (NameTextComponent)
+    {
+        NameTextComponent->SetupAttachment(GetRootComponent());
+        NameTextComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 45.0f)); // Above head.
+        NameTextComponent->SetHorizontalAlignment(EHTA_Center);
+        NameTextComponent->SetVerticalAlignment(EVRTA_TextBottom);
+        NameTextComponent->SetWorldSize(8.0f);
+        NameTextComponent->SetTextRenderColor(FColor(200, 200, 200, 200));
+        NameTextComponent->SetVisibility(false); // Hidden by default (Phase 2C fix).
+    }
+
+    // ---- Selection Ring ----
+    SelectionRingComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SelectionRing"));
+    if (SelectionRingComponent)
+    {
+        SelectionRingComponent->SetupAttachment(GetRootComponent());
+        SelectionRingComponent->SetRelativeLocation(FVector(0.0f, 0.0f, -17.0f)); // At feet.
+        SelectionRingComponent->SetRelativeScale3D(FVector(0.25f, 0.25f, 0.01f));
+        SelectionRingComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        SelectionRingComponent->SetVisibility(false); // Hidden until selected.
+        SelectionRingComponent->SetCastShadow(false);
+
+        // Try to load the engine cylinder mesh for a ring effect.
+        UStaticMesh* CylinderMesh = LoadObject<UStaticMesh>(nullptr,
+            TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+        if (CylinderMesh)
+        {
+            SelectionRingComponent->SetStaticMesh(CylinderMesh);
+        }
     }
 }
 
 // ---------------------------------------------------------------------------
-// BindToProfile
+// BeginPlay
+// ---------------------------------------------------------------------------
+
+void AMXRobotActor::BeginPlay()
+{
+    Super::BeginPlay();
+
+    // Apply robot scale. Done in BeginPlay to avoid Blueprint serialisation override.
+    SetActorScale3D(FVector(RobotScale));
+
+    // If a skeletal mesh asset is set, load and apply it.
+    if (!SkeletalMeshAsset.IsNull())
+    {
+        USkeletalMesh* LoadedMesh = SkeletalMeshAsset.LoadSynchronous();
+        if (LoadedMesh && GetMesh())
+        {
+            GetMesh()->SetSkeletalMesh(LoadedMesh);
+        }
+    }
+
+    // Update CMC speed from config.
+    UCharacterMovementComponent* CMC = GetCharacterMovement();
+    if (CMC)
+    {
+        CMC->MaxWalkSpeed = MoveSpeed;
+    }
+
+    // Create selection ring material.
+    if (SelectionRingComponent)
+    {
+        UMaterial* BaseMat = LoadObject<UMaterial>(nullptr,
+            TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+        if (BaseMat)
+        {
+            UMaterialInstanceDynamic* RingMat = UMaterialInstanceDynamic::Create(BaseMat, this);
+            if (RingMat)
+            {
+                RingMat->SetVectorParameterValue(TEXT("Color"), SelectionColor);
+                SelectionRingComponent->SetMaterial(0, RingMat);
+            }
+        }
+    }
+
+    // Ensure initial visibility states are correct.
+    UpdateNameVisibility();
+    UpdateSelectionRing();
+}
+
+// ---------------------------------------------------------------------------
+// Tick
+// ---------------------------------------------------------------------------
+
+void AMXRobotActor::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+
+    TickMovement(DeltaTime);
+    TickNameBillboard();
+}
+
+// ---------------------------------------------------------------------------
+// Profile Binding
 // ---------------------------------------------------------------------------
 
 void AMXRobotActor::BindToProfile(const FGuid& InRobotId, const FString& InRobotName)
@@ -66,94 +147,137 @@ void AMXRobotActor::BindToProfile(const FGuid& InRobotId, const FString& InRobot
         NameTextComponent->SetText(FText::FromString(RobotName));
     }
 
-    UE_LOG(LogTemp, Log, TEXT("[MXRobotActor] Bound to '%s' (ID: %s)"),
+    UE_LOG(LogTemp, Log, TEXT("MXRobotActor: Bound to '%s' (ID: %s)"),
            *RobotName, *RobotId.ToString());
 }
 
 // ---------------------------------------------------------------------------
-// BeginPlay
+// Selection & Hover
 // ---------------------------------------------------------------------------
 
-void AMXRobotActor::BeginPlay()
+void AMXRobotActor::SetSelected(bool bNewSelected)
 {
-    Super::BeginPlay();
+    if (bSelected == bNewSelected) return;
+    bSelected = bNewSelected;
 
-    // ---- Apply uniform scale ----
-    SetActorScale3D(FVector(RobotScale));
+    UpdateNameVisibility();
+    UpdateSelectionRing();
+}
 
-    // ---- Mesh Alignment ----
-    // Must be done here, NOT in the constructor. Blueprint child classes serialize
-    // component transforms that override constructor values. BeginPlay runs after
-    // Blueprint deserialization, so these offsets actually stick.
-    // Z = -CapsuleHalfHeight (88) so feet sit at capsule bottom instead of pelvis at center.
-    // Yaw = -90° so mesh forward aligns with capsule forward.
-    if (USkeletalMeshComponent* MeshComp = GetMesh())
-    {
-        MeshComp->SetRelativeLocation(FVector(0.0f, 0.0f, -88.0f));
-        MeshComp->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
-    }
+void AMXRobotActor::SetHovered(bool bNewHovered)
+{
+    if (bHovered == bNewHovered) return;
+    bHovered = bNewHovered;
 
-    // ---- Optional mesh assignment from soft reference ----
-    if (!SkeletalMeshAsset.IsNull())
-    {
-        USkeletalMesh* LoadedMesh = SkeletalMeshAsset.LoadSynchronous();
-        if (LoadedMesh && GetMesh())
-        {
-            GetMesh()->SetSkeletalMesh(LoadedMesh);
-            UE_LOG(LogTemp, Log, TEXT("[MXRobotActor] Skeletal mesh set from soft reference: %s"),
-                   *LoadedMesh->GetName());
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("[MXRobotActor] Failed to load SkeletalMeshAsset."));
-        }
-    }
-
-    // If no mesh is set at all, log a reminder.
-    if (GetMesh() && !GetMesh()->GetSkeletalMeshAsset())
-    {
-        UE_LOG(LogTemp, Warning,
-            TEXT("[MXRobotActor] No skeletal mesh assigned. Set SkeletalMeshAsset or use a Blueprint child with a mesh."));
-    }
-
-    UE_LOG(LogTemp, Log, TEXT("[MXRobotActor] BeginPlay — Scale: %.2f, Name: '%s'"),
-           RobotScale, *RobotName);
+    UpdateNameVisibility();
 }
 
 // ---------------------------------------------------------------------------
-// Tick
+// Movement
 // ---------------------------------------------------------------------------
 
-void AMXRobotActor::Tick(float DeltaTime)
+void AMXRobotActor::MoveToLocation(FVector Target)
 {
-    Super::Tick(DeltaTime);
+    MoveTargetLocation = Target;
+    // Keep the target at the same Z as the robot (XY plane movement only).
+    MoveTargetLocation.Z = GetActorLocation().Z;
+    bHasMoveTarget = true;
+}
 
-    // Billboard the name text toward the active camera.
-    UpdateNameBillboard();
+void AMXRobotActor::StopMoving()
+{
+    bHasMoveTarget = false;
+    MoveTargetLocation = FVector::ZeroVector;
 }
 
 // ---------------------------------------------------------------------------
-// UpdateNameBillboard
+// Internal: Movement Tick
 // ---------------------------------------------------------------------------
 
-void AMXRobotActor::UpdateNameBillboard()
+void AMXRobotActor::TickMovement(float DeltaTime)
+{
+    if (!bHasMoveTarget) return;
+
+    const FVector CurrentLocation = GetActorLocation();
+    const FVector ToTarget = MoveTargetLocation - CurrentLocation;
+    const float DistXY = FVector2D(ToTarget.X, ToTarget.Y).Size();
+
+    if (DistXY <= StopDistance)
+    {
+        // Arrived.
+        StopMoving();
+        return;
+    }
+
+    // Compute movement direction on XY plane.
+    FVector Direction = ToTarget.GetSafeNormal2D();
+
+    // Use AddMovementInput — CharacterMovementComponent handles the physics.
+    AddMovementInput(Direction, 1.0f);
+
+    // Smooth rotation toward movement direction.
+    if (!Direction.IsNearlyZero())
+    {
+        FRotator TargetRot = Direction.Rotation();
+        FRotator CurrentRot = GetActorRotation();
+        FRotator NewRot = FMath::RInterpTo(CurrentRot, TargetRot, DeltaTime, RotationInterpSpeed);
+        SetActorRotation(NewRot);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Internal: Name Visibility
+// ---------------------------------------------------------------------------
+
+void AMXRobotActor::UpdateNameVisibility()
 {
     if (!NameTextComponent) return;
 
-    APlayerCameraManager* CamMgr = UGameplayStatics::GetPlayerCameraManager(this, 0);
-    if (!CamMgr) return;
+    // Show name if selected OR hovered.
+    const bool bShowName = bSelected || bHovered;
+    NameTextComponent->SetVisibility(bShowName);
 
-    FVector CamLocation = CamMgr->GetCameraLocation();
-    FVector TextLocation = NameTextComponent->GetComponentLocation();
-
-    // UTextRenderComponent renders text readable from its local -X direction.
-    // So we point +X AWAY from the camera, making the front face toward it.
-    FVector Direction = TextLocation - CamLocation;
-    Direction.Z = 0.0f; // Keep text upright — only rotate on Yaw.
-
-    if (!Direction.IsNearlyZero())
+    // Color depends on state.
+    if (bSelected)
     {
-        FRotator LookAtRotation = Direction.Rotation();
-        NameTextComponent->SetWorldRotation(LookAtRotation);
+        NameTextComponent->SetTextRenderColor(SelectedNameColor);
+    }
+    else if (bHovered)
+    {
+        NameTextComponent->SetTextRenderColor(HoveredNameColor);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Internal: Selection Ring
+// ---------------------------------------------------------------------------
+
+void AMXRobotActor::UpdateSelectionRing()
+{
+    if (!SelectionRingComponent) return;
+    SelectionRingComponent->SetVisibility(bSelected);
+}
+
+// ---------------------------------------------------------------------------
+// Internal: Name Billboard
+// ---------------------------------------------------------------------------
+
+void AMXRobotActor::TickNameBillboard()
+{
+    if (!NameTextComponent || !NameTextComponent->IsVisible()) return;
+
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (!PC) return;
+
+    FVector CameraLocation;
+    FRotator CameraRotation;
+    PC->GetPlayerViewPoint(CameraLocation, CameraRotation);
+
+    // Face the text toward the camera.
+    FVector ToCamera = CameraLocation - NameTextComponent->GetComponentLocation();
+    if (!ToCamera.IsNearlyZero())
+    {
+        FRotator LookAtRot = ToCamera.Rotation();
+        NameTextComponent->SetWorldRotation(LookAtRot);
     }
 }

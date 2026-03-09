@@ -16,35 +16,42 @@ The C++ engine handles all game logic — calculations, profiles, events, proced
 
 All cross-module communication uses: events (MXEvents.h delegates), interfaces (MXInterfaces.h), and DataTables. No module directly references another module's concrete class — they communicate through the EventBus and provider interfaces.
 
-## Current State (Phase 2B Complete)
+## Current State (Phase 2C-Move)
 
-**Compiling:** All 120+ source files compile after adding `class UMXTiltShiftEffect;` forward declaration to MXTimeDilation.h.
+**Compiling:** All 120+ source files compile. Phase 2C-Move adds 4 new files and modifies 6 — see Phase2C_Move_SetupGuide.md for potential compilation notes.
 
-**Phase 2A (Complete):** Blueprint-to-C++ integration:
-- AMXRobotActor spawning with names from Identity module ✓
-- AMXCameraRig with SpringArm + TiltShift ✓
-- AMXSpawnTestGameMode wiring GameInstance → RobotManager → spawn ✓
-- MXSwarmCamera patched with UpdateRobotPosition() ✓
-- Test level L_SpawnTest with BP_MXSpawnTestGameMode ✓
+**Phase 2A (Complete):** Blueprint-to-C++ integration ✓
+**Phase 2B (Complete):** RTS Camera Controller ✓
 
-**Phase 2B (Complete):** RTS Camera Controller:
-- AMXRTSPlayerController with scroll zoom, right-click rotate, WASD pan, edge pan, middle-drag pan ✓
-- SwarmCamera tick disabled during RTS mode (prevents fighting pan) ✓
-- GameMode sets PlayerControllerClass and DefaultPawnClass = nullptr ✓
+**Phase 2C-Move (In Progress):** Selection + Click-to-Move + Procedural Floor:
+- UMXSelectionManager: click-select, box-select, Shift+multi, Ctrl+1-9 groups, Ctrl+A select all
+- AMXRobotActor updated: selection/hover state, MoveToLocation with CharacterMovementComponent, conditional name display (hover/select only)
+- AMXTestFloorGenerator: procedural grid floor with collision (replaces manual Plane mesh)
+- AMXRTSPlayerController updated: left-click select, box-drag, right-click move command, control groups
+- AMXSpawnTestGameMode updated: spawns floor → robots → camera in correct order
+- GravityScale=0 hack removed (floor now has proper collision)
+
+**Name Evolution (New):** UMXNameEvolution system builds compound robot names from lifecycle:
+- Birth: "Bolt" → 5 runs survived: "Bolt Sprocket" → achievement: "Bolt Sprocket The Fireproof"
+- Requires 3 patches: surname field on FMXRobotProfile, GameInstance wiring, RobotManager call
+- See NameEvolution_SetupGuide.md for exact patches
 
 **Known Issues:**
 1. Robots in T-pose (no AnimBP assigned)
-2. Name text display always visible (should be hover/selection only)
-3. Test floor is manual Plane mesh — no collision, GravityScale=0 workaround
+2. ~~Name text display always visible~~ → Fixed: now hover/select only
+3. ~~Manual plane mesh, no collision~~ → Fixed: procedural floor with collision
 4. Scroll wheel zoom uses IsInputKeyDown — may miss fast scrolls
 5. SandboxCharacter_CMC.uasset not yet inspected for skeleton compatibility
+6. Box select rectangle not drawn on screen (selection works, visual feedback pending)
+7. Right-click move vs rotate distinguished by click duration — may need tuning
+8. Floor tile material may not accept "Color" parameter (cosmetic only)
 
 ## File Structure
 
-All C++ source is in `Source/MicroExodus/` — **flat structure, no subdirectories**. The original agent architecture document described subdirectories per module, but compilation required flattening all files into a single directory.
+All C++ source is in `Source/MicroExodus/` — **flat structure, no subdirectories**.
 
 ```
-Source/MicroExodus/           ← All .h/.cpp files (flat)
+Source/MicroExodus/           ← All .h/.cpp files (flat, ~130 files)
 Content/Blueprints/           ← BP_MXGameInstance, BP_MXRobot, BP_MXSpawnTestGameMode, SandboxCharacter_CMC
 Content/Maps/                 ← L_SpawnTest
 Config/                       ← DefaultEngine.ini, DefaultGame.ini
@@ -80,15 +87,14 @@ Core, CoreUObject, Engine, InputCore, Json, JsonUtilities, UMG, Slate, SlateCore
 - **Flat includes.** All `#include` paths are bare filenames (e.g., `#include "MXRobotManager.h"`) — no subdirectory prefixes.
 - **Blueprint serialisation overrides constructors.** Component transforms set in a C++ constructor get overwritten by Blueprint child class serialised values. Set transforms in BeginPlay instead.
 - **Forward declarations for circular deps.** Use `class UMXFoo;` after `.generated.h` include when headers would create circular dependencies.
-- **Update tracking docs after every session.** README.md, CHANGE_LOG.md, Claude.md, and Agents.md must all be synced to Claude.ai Project knowledge and GitHub after each phase or mini-phase.
+- **Update tracking docs after every session.** README.md, CHANGE_LOG.md, Claude.md, and Agents.md must all be synced to Claude.ai Project knowledge and GitHub after each phase.
 
 ## Planned Features (Next Up)
 
-See Agents.md for full module details. Upcoming work:
-- **Phase 2C:** Robot selection system (box select, click, Ctrl+number groups)
-- **Phase 2D:** Name display on hover/selection only
-- **Phase 2E:** Procedural floor generation (wire MXProceduralGen to test level)
+- **Phase 2C-Polish:** Box select HUD drawing, move destination marker, walk animation
+- **Phase 2D:** Name display improvements (font, scale, occlusion)
+- **Phase 2E:** Wire UMXProceduralGen for room-based layouts (replace simple grid)
 - **Phase 2F:** Robot spawn UI (+ button, type picker, stat viewer)
-- **Phase 2-Next:** Blueprint-to-C++ linking with SandboxCharacter_CMC, spawn test with names + tilt-shift camera (prompt ready)
-- **Phase 3:** Mannequin mesh, materials, idle animation
-- **Phase 4:** Robot movement, swarm behaviors, hazard testing
+- **Phase 2-Next:** Blueprint-to-C++ linking with SandboxCharacter_CMC, AnimBP
+- **Phase 3:** Mannequin mesh, materials, idle/walk animation
+- **Phase 4:** Robot movement with boid behaviors, hazard testing

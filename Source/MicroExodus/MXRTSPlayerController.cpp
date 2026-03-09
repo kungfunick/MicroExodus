@@ -1,14 +1,14 @@
-// MXRTSPlayerController.cpp — Phase 2B: RTS Camera Controller
-// Created: 2026-03-08
-// v3 — axis bindings for WASD, pivot rotation, double-click snap
+// MXRTSPlayerController.cpp — Phase 2C-Move Update
+// Originally created: Phase 2B
+// Updated: 2026-03-09
 
 #include "MXRTSPlayerController.h"
+#include "MXSelectionManager.h"
+#include "MXRobotActor.h"
 #include "MXCameraRig.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
-#include "Kismet/GameplayStatics.h"
-#include "DrawDebugHelpers.h"
 
 // ---------------------------------------------------------------------------
 // Constructor
@@ -19,7 +19,9 @@ AMXRTSPlayerController::AMXRTSPlayerController()
     bShowMouseCursor = true;
     bEnableClickEvents = true;
     bEnableMouseOverEvents = true;
-    DefaultMouseCursor = EMouseCursor::Default;
+
+    // Create selection manager as a default subobject.
+    SelectionManager = CreateDefaultSubobject<UMXSelectionManager>(TEXT("SelectionManager"));
 }
 
 // ---------------------------------------------------------------------------
@@ -30,8 +32,443 @@ void AMXRTSPlayerController::BeginPlay()
 {
     Super::BeginPlay();
 
-    // Find the CameraRig in the level.
-    for (TActorIterator<AMXCameraRig> It(GetWorld()); It; ++It)
+    FindCameraRig();
+
+    if (CameraRig)
+    {
+        // Set view target to the camera rig.
+        SetViewTargetWithBlend(CameraRig, 0.5f);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// PlayerTick — Main input loop
+// ---------------------------------------------------------------------------
+
+void AMXRTSPlayerController::PlayerTick(float DeltaTime)
+{
+    Super::PlayerTick(DeltaTime);
+
+    // ---- Camera ----
+    HandleZoom(DeltaTime);
+    HandleRotation(DeltaTime);
+    HandleKeyboardPan(DeltaTime);
+    HandleEdgePan(DeltaTime);
+    HandleDragPan(DeltaTime);
+
+    // ---- Selection ----
+    HandleLeftMouseInput(DeltaTime);
+    HandleRightClickMove();
+    HandleControlGroups();
+    HandleSelectAll();
+
+    // ---- Hover (every tick) ----
+    if (SelectionManager && !bIsDraggingBoxSelect)
+    {
+        SelectionManager->UpdateHover();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Camera: Zoom
+// ---------------------------------------------------------------------------
+
+void AMXRTSPlayerController::HandleZoom(float DeltaTime)
+{
+    if (!CachedSpringArm) return;
+
+    // Detect scroll wheel via axis value.
+    float ScrollDelta = 0.0f;
+    if (IsInputKeyDown(EKeys::MouseScrollUp))
+    {
+        ScrollDelta = -1.0f;
+    }
+    else if (IsInputKeyDown(EKeys::MouseScrollDown))
+    {
+        ScrollDelta = 1.0f;
+    }
+
+    if (!FMath::IsNearlyZero(ScrollDelta))
+    {
+        // Speed scales with current zoom level for natural feel.
+        float ZoomFactor = ZoomSpeed * (CachedSpringArm->TargetArmLength / 500.0f);
+        TargetZoom = FMath::Clamp(TargetZoom + ScrollDelta * ZoomFactor, MinZoom, MaxZoom);
+    }
+
+    // Smooth zoom interpolation.
+    CachedSpringArm->TargetArmLength = FMath::FInterpTo(
+        CachedSpringArm->TargetArmLength, TargetZoom, DeltaTime, ZoomInterpSpeed);
+}
+
+// ---------------------------------------------------------------------------
+// Camera: Rotation (Right-click drag)
+// ---------------------------------------------------------------------------
+
+void AMXRTSPlayerController::HandleRotation(float DeltaTime)
+{
+    if (!CameraRig) return;
+
+    bool bRightDown = IsInputKeyDown(EKeys::RightMouseButton);
+
+    if (bRightDown && !bRightMouseDown)
+    {
+        // Just pressed.
+        bRightMouseDown = true;
+        GetMousePosition(PreviousMousePos.X, PreviousMousePos.Y);
+    }
+    else if (!bRightDown && bRightMouseDown)
+    {
+        // Just released.
+        bRightMouseDown = false;
+    }
+
+    if (bRightMouseDown)
+    {
+        FVector2D CurrentMouse;
+        GetMousePosition(CurrentMouse.X, CurrentMouse.Y);
+        float DeltaX = CurrentMouse.X - PreviousMousePos.X;
+
+        FRotator RigRot = CameraRig->GetActorRotation();
+        RigRot.Yaw += DeltaX * RotateSpeed;
+        CameraRig->SetActorRotation(RigRot);
+
+        PreviousMousePos = CurrentMouse;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Camera: Keyboard Pan (WASD / Arrows)
+// ---------------------------------------------------------------------------
+
+void AMXRTSPlayerController::HandleKeyboardPan(float DeltaTime)
+{
+    if (!CameraRig) return;
+
+    FVector Forward, Right;
+    GetPlanarDirections(Forward, Right);
+
+    FVector PanDirection = FVector::ZeroVector;
+
+    if (IsInputKeyDown(EKeys::W) || IsInputKeyDown(EKeys::Up))    PanDirection += Forward;
+    if (IsInputKeyDown(EKeys::S) || IsInputKeyDown(EKeys::Down))  PanDirection -= Forward;
+    if (IsInputKeyDown(EKeys::D) || IsInputKeyDown(EKeys::Right)) PanDirection += Right;
+    if (IsInputKeyDown(EKeys::A) || IsInputKeyDown(EKeys::Left))  PanDirection -= Right;
+
+    if (!PanDirection.IsNearlyZero())
+    {
+        PanDirection.Normalize();
+        // Pan speed scales with zoom for consistent screen-space speed.
+        float ZoomScale = CachedSpringArm ? (CachedSpringArm->TargetArmLength / 800.0f) : 1.0f;
+        CameraRig->AddActorWorldOffset(PanDirection * PanSpeed * ZoomScale * DeltaTime);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Camera: Edge Pan
+// ---------------------------------------------------------------------------
+
+void AMXRTSPlayerController::HandleEdgePan(float DeltaTime)
+{
+    if (!CameraRig) return;
+
+    FVector2D MousePos;
+    GetMousePosition(MousePos.X, MousePos.Y);
+
+    int32 VPX, VPY;
+    GetViewportSize(VPX, VPY);
+    if (VPX == 0 || VPY == 0) return;
+
+    float NormX = MousePos.X / (float)VPX;
+    float NormY = MousePos.Y / (float)VPY;
+
+    FVector Forward, Right;
+    GetPlanarDirections(Forward, Right);
+
+    FVector EdgePanDir = FVector::ZeroVector;
+
+    if (NormX < EdgePanThreshold)       EdgePanDir -= Right;
+    if (NormX > 1.0f - EdgePanThreshold) EdgePanDir += Right;
+    if (NormY < EdgePanThreshold)       EdgePanDir += Forward;
+    if (NormY > 1.0f - EdgePanThreshold) EdgePanDir -= Forward;
+
+    if (!EdgePanDir.IsNearlyZero())
+    {
+        EdgePanDir.Normalize();
+        float ZoomScale = CachedSpringArm ? (CachedSpringArm->TargetArmLength / 800.0f) : 1.0f;
+        CameraRig->AddActorWorldOffset(EdgePanDir * EdgePanSpeed * ZoomScale * DeltaTime);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Camera: Drag Pan (Middle-click)
+// ---------------------------------------------------------------------------
+
+void AMXRTSPlayerController::HandleDragPan(float DeltaTime)
+{
+    if (!CameraRig) return;
+
+    bool bMiddleDown = IsInputKeyDown(EKeys::MiddleMouseButton);
+
+    if (bMiddleDown && !bMiddleMouseDown)
+    {
+        bMiddleMouseDown = true;
+        GetMousePosition(MiddleMouseDownPos.X, MiddleMouseDownPos.Y);
+    }
+    else if (!bMiddleDown && bMiddleMouseDown)
+    {
+        bMiddleMouseDown = false;
+    }
+
+    if (bMiddleMouseDown)
+    {
+        FVector2D CurrentMouse;
+        GetMousePosition(CurrentMouse.X, CurrentMouse.Y);
+        FVector2D Delta = CurrentMouse - MiddleMouseDownPos;
+
+        FVector Forward, Right;
+        GetPlanarDirections(Forward, Right);
+
+        // Inverted for grab-and-drag feel.
+        FVector PanOffset = (-Right * Delta.X + Forward * Delta.Y) * DragPanSpeed;
+        CameraRig->AddActorWorldOffset(PanOffset * DeltaTime);
+
+        MiddleMouseDownPos = CurrentMouse;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Selection: Left Mouse Input
+// ---------------------------------------------------------------------------
+
+void AMXRTSPlayerController::HandleLeftMouseInput(float DeltaTime)
+{
+    if (!SelectionManager) return;
+
+    bool bLeftDown = IsInputKeyDown(EKeys::LeftMouseButton);
+    bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
+
+    // Don't process selection while right-click rotating.
+    if (bRightMouseDown) return;
+
+    // --- Just Pressed ---
+    if (bLeftDown && !bLeftMouseDown)
+    {
+        bLeftMouseDown = true;
+        bLeftMouseJustPressed = true;
+        bIsDraggingBoxSelect = false;
+
+        FVector2D MousePos;
+        GetMousePosition(MousePos.X, MousePos.Y);
+        LeftMouseDownPos = MousePos;
+
+        SelectionManager->BeginBoxSelect(MousePos);
+    }
+
+    // --- Held ---
+    if (bLeftDown && bLeftMouseDown)
+    {
+        FVector2D MousePos;
+        GetMousePosition(MousePos.X, MousePos.Y);
+
+        float DragDist = FVector2D::Distance(LeftMouseDownPos, MousePos);
+        if (DragDist > SelectionManager->BoxSelectThreshold)
+        {
+            bIsDraggingBoxSelect = true;
+        }
+
+        SelectionManager->UpdateBoxSelect(MousePos);
+        bLeftMouseJustPressed = false;
+    }
+
+    // --- Just Released ---
+    if (!bLeftDown && bLeftMouseDown)
+    {
+        bLeftMouseDown = false;
+
+        if (bIsDraggingBoxSelect)
+        {
+            // Finalize box select.
+            SelectionManager->EndBoxSelect(bShift);
+        }
+        else
+        {
+            // Single click select.
+            SelectionManager->TrySelectAtCursor(bShift);
+        }
+
+        bIsDraggingBoxSelect = false;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Movement: Right-Click Move Command
+// ---------------------------------------------------------------------------
+
+void AMXRTSPlayerController::HandleRightClickMove()
+{
+    if (!SelectionManager) return;
+    if (!SelectionManager->HasSelection()) return;
+
+    // Detect right-click release (not drag-rotate).
+    // We use a simple approach: if right mouse was down briefly without much drag, it's a move command.
+    // For simplicity, we'll check for a dedicated move key instead.
+    // Actually: right-click is also used for rotation. We need to distinguish.
+    // Solution: short right-click = move command. Long right-click = rotation.
+    // We track the right mouse press time.
+
+    static float RightClickStartTime = 0.0f;
+    static bool bRightWasDown = false;
+    static FVector2D RightClickStartPos = FVector2D::ZeroVector;
+
+    bool bRightDown = IsInputKeyDown(EKeys::RightMouseButton);
+
+    if (bRightDown && !bRightWasDown)
+    {
+        // Just pressed.
+        RightClickStartTime = GetWorld()->GetTimeSeconds();
+        GetMousePosition(RightClickStartPos.X, RightClickStartPos.Y);
+        bRightWasDown = true;
+    }
+
+    if (!bRightDown && bRightWasDown)
+    {
+        // Just released.
+        bRightWasDown = false;
+
+        float HeldDuration = GetWorld()->GetTimeSeconds() - RightClickStartTime;
+        FVector2D ReleasePos;
+        GetMousePosition(ReleasePos.X, ReleasePos.Y);
+        float DragDist = FVector2D::Distance(RightClickStartPos, ReleasePos);
+
+        // Short click with minimal drag = move command.
+        if (HeldDuration < 0.25f && DragDist < 10.0f)
+        {
+            FVector GroundHit;
+            if (GetGroundHitUnderCursor(GroundHit))
+            {
+                IssueMoveCommand(GroundHit);
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Selection: Control Groups (Ctrl+1-9 to save, 1-9 to recall)
+// ---------------------------------------------------------------------------
+
+void AMXRTSPlayerController::HandleControlGroups()
+{
+    if (!SelectionManager) return;
+
+    bool bCtrl = IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl);
+
+    // Check number keys 1-9.
+    for (int32 i = 1; i <= 9; ++i)
+    {
+        FKey NumberKey = FKey(*FString::Printf(TEXT("%d"), i));
+        if (WasInputKeyJustPressed(NumberKey))
+        {
+            if (bCtrl)
+            {
+                SelectionManager->SaveControlGroup(i);
+            }
+            else
+            {
+                SelectionManager->RecallControlGroup(i);
+            }
+            break; // Only handle one per tick.
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Selection: Select All (Ctrl+A)
+// ---------------------------------------------------------------------------
+
+void AMXRTSPlayerController::HandleSelectAll()
+{
+    if (!SelectionManager) return;
+
+    bool bCtrl = IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl);
+    if (bCtrl && WasInputKeyJustPressed(EKeys::A))
+    {
+        SelectionManager->SelectAll();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Movement: Issue Move Command
+// ---------------------------------------------------------------------------
+
+void AMXRTSPlayerController::IssueMoveCommand(FVector WorldTarget)
+{
+    TArray<AMXRobotActor*> Selected = SelectionManager->GetSelectedRobots();
+    if (Selected.Num() == 0) return;
+
+    if (Selected.Num() == 1)
+    {
+        // Single robot — move directly to click.
+        Selected[0]->MoveToLocation(WorldTarget);
+    }
+    else
+    {
+        // Multiple robots — spread in a circle formation.
+        const float Radius = FormationSpacing * FMath::Sqrt((float)Selected.Num());
+        const float AngleStep = 360.0f / (float)Selected.Num();
+
+        for (int32 i = 0; i < Selected.Num(); ++i)
+        {
+            float AngleDeg = AngleStep * i;
+            float AngleRad = FMath::DegreesToRadians(AngleDeg);
+
+            FVector Offset(
+                FMath::Cos(AngleRad) * Radius,
+                FMath::Sin(AngleRad) * Radius,
+                0.0f
+            );
+
+            Selected[i]->MoveToLocation(WorldTarget + Offset);
+        }
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("MXRTSPlayerController: Move command issued to %d robots at (%.0f, %.0f, %.0f)."),
+           Selected.Num(), WorldTarget.X, WorldTarget.Y, WorldTarget.Z);
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+bool AMXRTSPlayerController::GetGroundHitUnderCursor(FVector& OutLocation) const
+{
+    FHitResult Hit;
+    GetHitResultUnderCursor(ECC_WorldStatic, true, Hit);
+
+    if (Hit.bBlockingHit)
+    {
+        OutLocation = Hit.ImpactPoint;
+        return true;
+    }
+
+    return false;
+}
+
+void AMXRTSPlayerController::GetPlanarDirections(FVector& OutForward, FVector& OutRight) const
+{
+    FRotator ControlRot = GetControlRotation();
+    ControlRot.Pitch = 0.0f;
+    ControlRot.Roll = 0.0f;
+
+    OutForward = FRotationMatrix(ControlRot).GetUnitAxis(EAxis::X);
+    OutRight = FRotationMatrix(ControlRot).GetUnitAxis(EAxis::Y);
+}
+
+void AMXRTSPlayerController::FindCameraRig()
+{
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    for (TActorIterator<AMXCameraRig> It(World); It; ++It)
     {
         CameraRig = *It;
         break;
@@ -39,415 +476,17 @@ void AMXRTSPlayerController::BeginPlay()
 
     if (CameraRig)
     {
-        SetViewTargetWithBlend(CameraRig, 0.2f);
-
-        if (CameraRig->SpringArm)
+        // Cache the spring arm for zoom control.
+        CachedSpringArm = CameraRig->FindComponentByClass<USpringArmComponent>();
+        if (CachedSpringArm)
         {
-            CurrentZoom = CameraRig->SpringArm->TargetArmLength;
-            TargetZoom = CurrentZoom;
+            TargetZoom = CachedSpringArm->TargetArmLength;
         }
 
-        UE_LOG(LogTemp, Log, TEXT("[MXRTSController] CameraRig found. Zoom: %.0f"), CurrentZoom);
+        UE_LOG(LogTemp, Log, TEXT("MXRTSPlayerController: Found CameraRig, SpringArm cached."));
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("[MXRTSController] No AMXCameraRig found in level!"));
+        UE_LOG(LogTemp, Warning, TEXT("MXRTSPlayerController: No AMXCameraRig found in level!"));
     }
-
-    // Game + UI: cursor visible, all input works.
-    FInputModeGameAndUI InputMode;
-    InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-    InputMode.SetHideCursorDuringCapture(false);
-    SetInputMode(InputMode);
-}
-
-// ---------------------------------------------------------------------------
-// SetupInputComponent
-// ---------------------------------------------------------------------------
-
-void AMXRTSPlayerController::SetupInputComponent()
-{
-    Super::SetupInputComponent();
-    if (!InputComponent) return;
-
-    // Axes — bound to DefaultInput.ini mappings.
-    InputComponent->BindAxis("ZoomAxis", this, &AMXRTSPlayerController::OnZoomAxis);
-    InputComponent->BindAxis("MoveForward", this, &AMXRTSPlayerController::OnMoveForward);
-    InputComponent->BindAxis("MoveRight", this, &AMXRTSPlayerController::OnMoveRight);
-    InputComponent->BindAxis("MouseX", this, &AMXRTSPlayerController::OnMouseX);
-    InputComponent->BindAxis("MouseY", this, &AMXRTSPlayerController::OnMouseY);
-
-    // Actions.
-    InputComponent->BindAction("RightMouse", IE_Pressed, this, &AMXRTSPlayerController::OnRightMousePressed);
-    InputComponent->BindAction("RightMouse", IE_Released, this, &AMXRTSPlayerController::OnRightMouseReleased);
-    InputComponent->BindAction("MiddleMouse", IE_Pressed, this, &AMXRTSPlayerController::OnMiddleMousePressed);
-    InputComponent->BindAction("MiddleMouse", IE_Released, this, &AMXRTSPlayerController::OnMiddleMouseReleased);
-    InputComponent->BindAction("LeftMouse", IE_Pressed, this, &AMXRTSPlayerController::OnLeftMousePressed);
-    InputComponent->BindAction("LeftMouse", IE_Released, this, &AMXRTSPlayerController::OnLeftMouseReleased);
-
-    UE_LOG(LogTemp, Log, TEXT("[MXRTSController] Input bindings complete."));
-}
-
-// ---------------------------------------------------------------------------
-// Input Callbacks
-// ---------------------------------------------------------------------------
-
-void AMXRTSPlayerController::OnZoomAxis(float Value)
-{
-    if (FMath::IsNearlyZero(Value)) return;
-
-    // Zoom toward/away from cursor position for natural feel.
-    float ZoomDelta = -Value * ZoomSpeed * FMath::Max(CurrentZoom / 300.0f, 1.0f);
-    float NewZoom = FMath::Clamp(TargetZoom + ZoomDelta, MinZoom, MaxZoom);
-
-    // Move the rig toward the cursor world position proportionally to zoom change.
-    if (CameraRig)
-    {
-        FVector CursorWorld;
-        if (GetCursorWorldPosition(CursorWorld))
-        {
-            float ZoomFraction = (TargetZoom - NewZoom) / TargetZoom;
-            FVector RigPos = CameraRig->GetActorLocation();
-            FVector Direction = CursorWorld - RigPos;
-            Direction.Z = 0.0f; // Stay on the plane.
-            CameraRig->SetActorLocation(RigPos + Direction * ZoomFraction * 0.3f);
-        }
-    }
-
-    TargetZoom = NewZoom;
-}
-
-void AMXRTSPlayerController::OnMoveForward(float Value) { MoveForwardInput = Value; }
-void AMXRTSPlayerController::OnMoveRight(float Value)   { MoveRightInput = Value; }
-void AMXRTSPlayerController::OnMouseX(float Value)       { MouseDeltaX = Value; }
-void AMXRTSPlayerController::OnMouseY(float Value)       { MouseDeltaY = Value; }
-
-void AMXRTSPlayerController::OnRightMousePressed()
-{
-    bRotating = true;
-    bHasRotationPivot = false;
-
-    // Capture the world position under the cursor as the rotation pivot.
-    FVector CursorWorld;
-    if (GetCursorWorldPosition(CursorWorld))
-    {
-        RotationPivot = CursorWorld;
-        bHasRotationPivot = true;
-    }
-}
-
-void AMXRTSPlayerController::OnRightMouseReleased()
-{
-    bRotating = false;
-    bHasRotationPivot = false;
-}
-
-void AMXRTSPlayerController::OnMiddleMousePressed()  { bDragPanning = true; }
-void AMXRTSPlayerController::OnMiddleMouseReleased() { bDragPanning = false; }
-
-void AMXRTSPlayerController::OnLeftMousePressed()
-{
-    float CurrentTime = GetWorld()->GetTimeSeconds();
-    bLeftMouseDown = true;
-    bLeftDragging = false;
-
-    // Capture screen position for drag threshold check.
-    float MX, MY;
-    if (GetMousePosition(MX, MY))
-    {
-        LeftDragScreenStart = FVector2D(MX, MY);
-    }
-
-    // Capture world position as the grab anchor.
-    GetCursorWorldPosition(LeftDragWorldAnchor);
-
-    // Double-click detection.
-    if (CurrentTime - LastLeftClickTime < DoubleClickTime)
-    {
-        // Double-click — snap camera to cursor world position.
-        FVector CursorWorld;
-        if (GetCursorWorldPosition(CursorWorld))
-        {
-            SnapTarget = FVector(CursorWorld.X, CursorWorld.Y, CameraRig ? CameraRig->GetActorLocation().Z : 0.0f);
-            bSnapping = true;
-        }
-        LastLeftClickTime = -1.0f; // Reset to prevent triple-click.
-    }
-    else
-    {
-        LastLeftClickTime = CurrentTime;
-    }
-}
-
-void AMXRTSPlayerController::OnLeftMouseReleased()
-{
-    bLeftMouseDown = false;
-
-    if (bLeftDragging)
-    {
-        // Was a drag — just stop dragging.
-        bLeftDragging = false;
-    }
-    else
-    {
-        // Was a click (didn't exceed drag threshold).
-        // Reserved for Phase 2C: selection system.
-    }
-}
-
-// ---------------------------------------------------------------------------
-// PlayerTick
-// ---------------------------------------------------------------------------
-
-void AMXRTSPlayerController::PlayerTick(float DeltaTime)
-{
-    Super::PlayerTick(DeltaTime);
-    if (!CameraRig) return;
-
-    HandleZoom(DeltaTime);
-    HandleRotation(DeltaTime);
-    HandleDragPan(DeltaTime);
-    HandleLeftDragPan(DeltaTime);
-    HandleKeyboardPan(DeltaTime);
-    HandleEdgePan(DeltaTime);
-    HandleSnapMove(DeltaTime);
-}
-
-// ---------------------------------------------------------------------------
-// HandleZoom
-// ---------------------------------------------------------------------------
-
-void AMXRTSPlayerController::HandleZoom(float DeltaTime)
-{
-    if (!CameraRig || !CameraRig->SpringArm) return;
-    CurrentZoom = FMath::FInterpTo(CurrentZoom, TargetZoom, DeltaTime, ZoomInterpSpeed);
-    CameraRig->SpringArm->TargetArmLength = CurrentZoom;
-}
-
-// ---------------------------------------------------------------------------
-// HandleRotation — rotate around the cursor pivot point
-// ---------------------------------------------------------------------------
-
-void AMXRTSPlayerController::HandleRotation(float DeltaTime)
-{
-    if (!CameraRig || !bRotating) return;
-    if (FMath::IsNearlyZero(MouseDeltaX)) return;
-
-    float YawDelta = MouseDeltaX * RotateSpeed;
-
-    if (bHasRotationPivot)
-    {
-        // Rotate the rig around the pivot point (where the cursor was when RMB was pressed).
-        FVector RigPos = CameraRig->GetActorLocation();
-        FVector Offset = RigPos - RotationPivot;
-        Offset.Z = 0.0f;
-
-        // Rotate the offset vector around Z.
-        float Rad = FMath::DegreesToRadians(YawDelta);
-        float CosA = FMath::Cos(Rad);
-        float SinA = FMath::Sin(Rad);
-        FVector RotatedOffset;
-        RotatedOffset.X = Offset.X * CosA - Offset.Y * SinA;
-        RotatedOffset.Y = Offset.X * SinA + Offset.Y * CosA;
-        RotatedOffset.Z = RigPos.Z;
-
-        FVector NewPos = FVector(RotationPivot.X + RotatedOffset.X,
-                                  RotationPivot.Y + RotatedOffset.Y,
-                                  RigPos.Z);
-        CameraRig->SetActorLocation(NewPos);
-    }
-
-    // Always rotate the rig's yaw.
-    FRotator Rot = CameraRig->GetActorRotation();
-    Rot.Yaw += YawDelta;
-    CameraRig->SetActorRotation(Rot);
-}
-
-// ---------------------------------------------------------------------------
-// HandleKeyboardPan — WASD / Arrows via axis bindings
-// ---------------------------------------------------------------------------
-
-void AMXRTSPlayerController::HandleKeyboardPan(float DeltaTime)
-{
-    if (!CameraRig) return;
-    if (FMath::IsNearlyZero(MoveForwardInput) && FMath::IsNearlyZero(MoveRightInput)) return;
-
-    FVector Forward, Right;
-    GetPlanarDirections(Forward, Right);
-
-    FVector PanDir = Forward * MoveForwardInput + Right * MoveRightInput;
-    PanDir.Normalize();
-
-    float SpeedScale = FMath::Max(CurrentZoom / 300.0f, 1.0f);
-    CameraRig->SetActorLocation(
-        CameraRig->GetActorLocation() + PanDir * PanSpeed * SpeedScale * DeltaTime);
-
-    // Cancel snap if player manually pans.
-    bSnapping = false;
-}
-
-// ---------------------------------------------------------------------------
-// HandleEdgePan
-// ---------------------------------------------------------------------------
-
-void AMXRTSPlayerController::HandleEdgePan(float DeltaTime)
-{
-    if (!CameraRig || !bEdgePanEnabled) return;
-    if (bRotating || bDragPanning || bLeftDragging) return;
-
-    int32 VPX, VPY;
-    GetViewportSize(VPX, VPY);
-    if (VPX <= 0 || VPY <= 0) return;
-
-    float MX, MY;
-    if (!GetMousePosition(MX, MY)) return;
-    if (MX <= 1.0f && MY <= 1.0f) return;
-
-    float TX = VPX * EdgePanThreshold;
-    float TY = VPY * EdgePanThreshold;
-
-    FVector PanDir = FVector::ZeroVector;
-    FVector Forward, Right;
-    GetPlanarDirections(Forward, Right);
-
-    if (MX < TX)             PanDir -= Right;
-    else if (MX > VPX - TX)  PanDir += Right;
-    if (MY < TY)             PanDir += Forward;
-    else if (MY > VPY - TY)  PanDir -= Forward;
-
-    if (!PanDir.IsNearlyZero())
-    {
-        PanDir.Normalize();
-        float SpeedScale = FMath::Max(CurrentZoom / 300.0f, 1.0f);
-        CameraRig->SetActorLocation(
-            CameraRig->GetActorLocation() + PanDir * EdgePanSpeed * SpeedScale * DeltaTime);
-        bSnapping = false;
-    }
-}
-
-// ---------------------------------------------------------------------------
-// HandleDragPan — middle mouse grab-pan
-// ---------------------------------------------------------------------------
-
-void AMXRTSPlayerController::HandleDragPan(float DeltaTime)
-{
-    if (!CameraRig || !bDragPanning) return;
-    if (FMath::IsNearlyZero(MouseDeltaX) && FMath::IsNearlyZero(MouseDeltaY)) return;
-
-    FVector Forward, Right;
-    GetPlanarDirections(Forward, Right);
-
-    float SpeedScale = FMath::Max(CurrentZoom / 300.0f, 0.5f);
-    FVector Offset = (-Right * MouseDeltaX + Forward * MouseDeltaY) * DragPanSpeed * SpeedScale;
-    CameraRig->SetActorLocation(CameraRig->GetActorLocation() + Offset);
-    bSnapping = false;
-}
-
-// ---------------------------------------------------------------------------
-// HandleLeftDragPan — left-click grab ground and slide
-// ---------------------------------------------------------------------------
-
-void AMXRTSPlayerController::HandleLeftDragPan(float DeltaTime)
-{
-    if (!CameraRig || !bLeftMouseDown) return;
-
-    // Check if we should start dragging (past the pixel threshold).
-    if (!bLeftDragging)
-    {
-        float MX, MY;
-        if (!GetMousePosition(MX, MY)) return;
-
-        float PixelDist = FVector2D::Distance(LeftDragScreenStart, FVector2D(MX, MY));
-        if (PixelDist < LeftDragThreshold) return;
-
-        // Crossed the threshold — commit to dragging (not a click).
-        bLeftDragging = true;
-        bSnapping = false;
-        LastLeftClickTime = -1.0f; // Cancel double-click if we started dragging.
-    }
-
-    // We're dragging: move the camera so the original grab point stays under the cursor.
-    // Get where the cursor currently points in the world.
-    FVector CurrentCursorWorld;
-    if (!GetCursorWorldPosition(CurrentCursorWorld)) return;
-
-    // The difference between where the anchor was and where it is now tells us how to move.
-    FVector Delta = LeftDragWorldAnchor - CurrentCursorWorld;
-    Delta.Z = 0.0f;
-
-    if (!Delta.IsNearlyZero(0.5f))
-    {
-        CameraRig->SetActorLocation(CameraRig->GetActorLocation() + Delta);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// HandleSnapMove — smooth move to double-clicked position
-// ---------------------------------------------------------------------------
-
-void AMXRTSPlayerController::HandleSnapMove(float DeltaTime)
-{
-    if (!CameraRig || !bSnapping) return;
-
-    FVector Current = CameraRig->GetActorLocation();
-    FVector NewPos = FMath::VInterpTo(Current, SnapTarget, DeltaTime, SnapMoveSpeed);
-    CameraRig->SetActorLocation(NewPos);
-
-    // Stop snapping when close enough.
-    if (FVector::Dist2D(NewPos, SnapTarget) < 5.0f)
-    {
-        bSnapping = false;
-    }
-}
-
-// ---------------------------------------------------------------------------
-// GetPlanarDirections
-// ---------------------------------------------------------------------------
-
-void AMXRTSPlayerController::GetPlanarDirections(FVector& OutForward, FVector& OutRight) const
-{
-    if (!CameraRig)
-    {
-        OutForward = FVector::ForwardVector;
-        OutRight = FVector::RightVector;
-        return;
-    }
-
-    FRotator YawOnly(0.0f, CameraRig->GetActorRotation().Yaw, 0.0f);
-    OutForward = YawOnly.Vector();
-    OutRight = FRotationMatrix(YawOnly).GetScaledAxis(EAxis::Y);
-    OutForward.Z = 0.0f;
-    OutRight.Z = 0.0f;
-    OutForward.Normalize();
-    OutRight.Normalize();
-}
-
-// ---------------------------------------------------------------------------
-// GetCursorWorldPosition — trace from cursor to the ground plane
-// ---------------------------------------------------------------------------
-
-bool AMXRTSPlayerController::GetCursorWorldPosition(FVector& OutWorldPos) const
-{
-    FVector WorldOrigin, WorldDirection;
-    if (!DeprojectMousePositionToWorld(WorldOrigin, WorldDirection))
-    {
-        return false;
-    }
-
-    // Trace against a horizontal plane at Z=0 (the floor).
-    // Ray: P = Origin + t * Direction
-    // Plane: Z = 0 → t = -Origin.Z / Direction.Z
-    if (FMath::IsNearlyZero(WorldDirection.Z))
-    {
-        return false; // Ray is parallel to floor.
-    }
-
-    float T = -WorldOrigin.Z / WorldDirection.Z;
-    if (T < 0.0f)
-    {
-        return false; // Intersection is behind the camera.
-    }
-
-    OutWorldPos = WorldOrigin + WorldDirection * T;
-    return true;
 }

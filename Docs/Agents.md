@@ -80,7 +80,7 @@ Bus->OnRobotDied.AddDynamic(this, &UMyClass::HandleRobotDied);
 ## Agent 2: Identity
 
 **Status:** Compiling ✓
-**Files:** MXRobotManager.h/cpp, MXNameGenerator.h/cpp, MXPersonalityGenerator.h/cpp, MXLifeLog.h/cpp, MXAgingSystem.h/cpp
+**Files:** MXRobotManager.h/cpp, MXNameGenerator.h/cpp, MXNameEvolution.h/cpp, MXPersonalityGenerator.h/cpp, MXLifeLog.h/cpp, MXAgingSystem.h/cpp
 
 **Key Functions:**
 - `UMXRobotManager::Initialize(UMXNameGenerator*, UMXPersonalityGenerator*, UMXLifeLog*, UMXAgingSystem*)` — **requires all four pointers**
@@ -89,18 +89,30 @@ Bus->OnRobotDied.AddDynamic(this, &UMyClass::HandleRobotDied);
 - `UMXRobotManager::GetRobotProfile_Implementation(FGuid)` → FMXRobotProfile
 - `UMXRobotManager::GetAllRobotProfiles_Implementation()` → TArray\<FMXRobotProfile\>
 - `UMXRobotManager::AddXP(FGuid, int32)` — with level-up check
+- `UMXRobotManager::CheckTitles(FGuid)` — awards titles based on stat thresholds (Veteran, Firewalker, etc.)
 - `UMXNameGenerator::GenerateName()` → FString (fallback names if no DataTable)
 - `UMXNameGenerator::ReleaseName(FString, int32)` — returns name to pool with cooldown
+- `UMXNameEvolution::EvaluateNameEvolution(FMXRobotProfile&)` → bool (rolls surname at 5 runs survived)
+- `UMXNameEvolution::GetDisplayName(FMXRobotProfile)` → FString ("[Name] [Surname] [The Title]")
+- `UMXNameEvolution::GetShortName(FMXRobotProfile)` → FString ("[Name] [Surname]")
+- `UMXNameEvolution::RollSurname(FGuid, ERobotRole)` → FString (deterministic from GUID)
+
+**Name Evolution (new):**
+- Surname earned at 5 runs survived, role-themed (Scout/Guardian/Engineer pools + universal)
+- 68 hardcoded fallback surnames, optional DT_Surnames DataTable override
+- Display name = "[FirstName] [Surname] [The Title]" — e.g., "Bolt Sprocket The Fireproof"
+- FMXRobotProfile.surname field (requires patch to MXRobotProfile.h)
 
 **Wiring (from GameInstance::Init):**
 - NameGenerator = NewObject → optional LoadFromDataTable(NamesTable)
 - PersonalityGenerator = NewObject → optional LoadFromDataTable(PersonalitiesTable)
 - LifeLog = NewObject, AgingSystem = NewObject
+- NameEvolution = NewObject → Initialize(SurnameTable or nullptr)
 - RobotManager->Initialize(NameGen, PersonalityGen, LifeLog, AgingSystem)
 
 **Implements:** IMXRobotProvider, IMXEventListener, IMXPersistable
 **Listens To:** OnRobotDied, OnRobotRescued, OnRobotSacrificed, OnNearMiss, OnLevelComplete, OnRunComplete, OnRunFailed, OnHatEquipped, OnHatLost, OnSpecChosen
-**DataTables:** DT_Names (optional), DT_Personalities (optional)
+**DataTables:** DT_Names (optional), DT_Personalities (optional), DT_Surnames (optional)
 
 ---
 
@@ -358,79 +370,102 @@ Bus->OnRobotDied.AddDynamic(this, &UMyClass::HandleRobotDied);
 
 ---
 
-## Phase 2A Additions (New in this phase)
+## Phase 2A Additions
 
-**Status:** Working (with known issues listed in Claude.md)
+**Status:** Working ✓ (updated in Phase 2C-Move)
 **Files:** MXRobotActor.h/cpp, MXCameraRig.h/cpp, MXSpawnTestGameMode.h/cpp
 
 ### AMXRobotActor (ACharacter subclass)
 - `BindToProfile(FGuid, FString)` — sets RobotId, RobotName, updates text
+- `SetSelected(bool)`, `SetHovered(bool)` — selection/hover state (Phase 2C)
+- `MoveToLocation(FVector)`, `StopMoving()` — click-to-move with CMC (Phase 2C)
 - `RobotScale` UPROPERTY — default 0.20
 - `SkeletalMeshAsset` — optional TSoftObjectPtr for C++ mesh assignment
-- `NameTextComponent` (UTextRenderComponent) — billboards toward camera each tick
+- `NameTextComponent` (UTextRenderComponent) — hidden by default, shown on hover/select (Phase 2C fix)
+- `SelectionRingComponent` (UStaticMeshComponent) — cylinder at feet, visible when selected (Phase 2C)
+- `MoveSpeed` (150), `StopDistance` (20), `RotationInterpSpeed` (8)
 - Mesh alignment done in BeginPlay (not constructor — BP serialisation override)
-- GravityScale = 0 (workaround for collision-less test floor)
+- GravityScale = 1.0 (Phase 2C fix: floor now has collision)
 
 ### AMXCameraRig (AActor)
 - Constructor creates and wires: SpringArm → Camera, PostProcess, SwarmCamera, TiltShiftEffect, TimeDilation
 - `SwarmCamera->SpringArm` wired in constructor
 - `TimeDilation->TiltShiftEffect` wired in constructor
 - TiltShiftEffect auto-discovers PostProcess in BeginPlay
-- SetViewTargetWithBlend currently **disabled** for debugging
 
 ### AMXSpawnTestGameMode (AGameModeBase)
 - Gets UMXGameInstance → UMXRobotManager
-- Calls CreateRobot() N times, spawns AMXRobotActor in circle
-- Spawns AMXCameraRig, calls SetSwarmTarget + UpdateRobotPosition
-- Configurable: NumRobots (8), SpawnRadius (200), FloorZ (0), RobotActorClass, CameraRigClass
+- **Spawn order:** Floor → Robots → Camera (Phase 2C)
+- Robots spawn at random positions on procedural floor surface (Phase 2C)
+- Configurable: NumRobots (8), FloorGridX (10), FloorGridY (10), FloorTileSize (200)
+- RobotActorClass, CameraRigClass, FloorGeneratorClass all configurable
 
 ---
 
-## Planned Modules (Not Started)
+## Phase 2B: RTS Camera Controller (Complete)
 
-### Phase 2B: RTS Camera Controller (Complete)
-**Status:** Complete ✓
+**Status:** Complete ✓ (updated in Phase 2C-Move)
 **Files:** MXRTSPlayerController.h/cpp
 
 **AMXRTSPlayerController (APlayerController subclass)**
 - `bShowMouseCursor = true`, `bEnableClickEvents = true`, `bEnableMouseOverEvents = true`
 - Finds AMXCameraRig via TActorIterator in BeginPlay, calls SetViewTargetWithBlend
-- `HandleZoom()` — scroll wheel drives SpringArm TargetArmLength, speed scales with zoom level
-- `HandleRotation()` — right-click drag rotates rig Yaw
-- `HandleKeyboardPan()` — WASD/Arrows pan on XY, speed scales with zoom
-- `HandleEdgePan()` — auto-pan when cursor near screen edges (2% threshold)
-- `HandleDragPan()` — middle-click drag-to-pan (inverted for grab feel)
-- `GetPlanarDirections()` — camera-relative forward/right projected onto XY plane
+- **Camera:** HandleZoom, HandleRotation, HandleKeyboardPan, HandleEdgePan, HandleDragPan
+- **Selection (Phase 2C):** HandleLeftMouseInput (click + box drag), HandleRightClickMove, HandleControlGroups, HandleSelectAll
+- `UMXSelectionManager` component — created as default subobject (Phase 2C)
+- `IssueMoveCommand(FVector)` — sends MoveToLocation to all selected robots with circle formation
+- `GetGroundHitUnderCursor()` — raycasts to ECC_WorldStatic for move targets
 - All input via raw polling in PlayerTick (no Enhanced Input dependency)
+- Right-click: short click (<0.25s, <10px drag) = move command; longer = camera rotation
 
-**Wiring:**
-- Set as PlayerControllerClass in AMXSpawnTestGameMode constructor
-- DefaultPawnClass = nullptr (no pawn to fight for input)
-- SwarmCamera tick disabled after initial centroid positioning (prevents fighting RTS pan)
-
-**Config UPROPERTYs:** ZoomSpeed(50), MinZoom(100), MaxZoom(3000), ZoomInterpSpeed(6), PanSpeed(800), EdgePanSpeed(600), EdgePanThreshold(0.02), RotateSpeed(0.3), DragPanSpeed(2)
+**Config UPROPERTYs:** ZoomSpeed(50), MinZoom(100), MaxZoom(3000), ZoomInterpSpeed(6), PanSpeed(800), EdgePanSpeed(600), EdgePanThreshold(0.02), RotateSpeed(0.3), DragPanSpeed(2), FormationSpacing(40)
 
 **Depends On:** AMXCameraRig (Phase 2A)
 
-### Phase 2C: Selection System
-**Purpose:** Click-select, box-select, Ctrl+number control groups for robots.
-**Planned Class:** `UMXSelectionManager` (ActorComponent on controller)
-**Features:** Left-click individual select, click-drag box select, Shift+click multi-select, Ctrl+1-9 assign groups, 1-9 recall groups, double-click select all of type.
-**Depends On:** AMXRTSPlayerController (Phase 2B), AMXRobotActor
-**Output:** TArray\<FGuid\> SelectedRobots, delegate OnSelectionChanged
+---
 
-### Phase 2D: Name Display (Hover/Selection)
-**Purpose:** Show robot names only on mouse hover or when selected.
-**Planned Changes:** Modify AMXRobotActor::NameTextComponent visibility logic. Hidden by default. Show on: hover (raytrace from cursor), selected (from SelectionManager), group selected.
-**Depends On:** UMXSelectionManager (Phase 2C)
+## Phase 2C-Move: Selection + Click-to-Move + Procedural Floor
 
-### Phase 2E: Procedural Floor
-**Purpose:** Replace manual Plane mesh with procedurally generated test floor from MXProceduralGen.
-**Approach:** Use UMXProceduralGen::GenerateRunLayout() to get FMXLevelLayout, spawn floor geometry from FMXRoomDef array. Start with simple boxes/planes per room, upgrade to tileset later.
-**Depends On:** UMXProceduralGen (Agent 12 — already exists)
+**Status:** Code delivered, pending compilation ⏳
+**Files:** MXSelectionManager.h/cpp, MXTestFloorGenerator.h/cpp (+ modified files above)
+
+### UMXSelectionManager (ActorComponent on PlayerController)
+- `TrySelectAtCursor(bool bAdditive)` — raycast select, Shift toggles additive mode
+- `BeginBoxSelect / UpdateBoxSelect / EndBoxSelect` — screen-space rectangle selection
+- `ClearSelection()`, `SelectAll()` — bulk operations
+- `SaveControlGroup(int32)`, `RecallControlGroup(int32)` — Ctrl+1-9 save, 1-9 recall
+- `UpdateHover()` — per-tick raycast for hover state (drives name visibility)
+- `OnSelectionChanged` delegate — broadcasts TArray<AMXRobotActor*>
+- Selection stored as TArray<TWeakObjectPtr<AMXRobotActor>> (safe against destruction)
+- `BoxSelectThreshold` = 5px (distinguishes click from drag)
+- `SelectionTraceChannel` = ECC_Pawn
+
+### AMXTestFloorGenerator (AActor)
+- `GenerateFloor()` — spawns GridSizeX × GridSizeY tiles using /Engine/BasicShapes/Cube
+- Tiles have collision (ECollisionEnabled::QueryAndPhysics, ECR_Block, ECC_WorldStatic)
+- `GetFloorCenter()`, `GetFloorBounds()`, `GetRandomFloorPosition(float Margin)`
+- Config: GridSizeX(10), GridSizeY(10), TileSize(200), TileThickness(10), TileGap(2), FloorZ(0)
+- Checkerboard pattern with configurable colors
+- bAutoGenerate = true (generates on BeginPlay)
+
+**Depends On:** AMXRTSPlayerController (Phase 2B), AMXRobotActor (Phase 2A)
+
+---
+
+## Planned Modules (Not Started)
+
+### Phase 2C-Polish: Selection Visual Feedback
+**Purpose:** Draw box select rectangle on screen, move destination marker.
+**Approach:** HUD class with Canvas drawing, or UMG overlay widget.
+
+### Phase 2E-Advanced: Procedural Room Layouts
+**Purpose:** Replace simple grid floor with UMXProceduralGen room-based layouts.
+**Approach:** Use UMXProceduralGen::GenerateRunLayout() to get FMXLevelLayout, spawn floor geometry from FMXRoomDef array.
+**Depends On:** UMXProceduralGen (Agent 12 — already exists), AMXTestFloorGenerator
 
 ### Phase 2F: Robot Spawn UI
 **Purpose:** In-game UI for adding robots with + button, selecting type, viewing/editing stats.
 **Planned Class:** `UMXSpawnTestWidget` (UUserWidget)
 **Features:** + button spawns a new robot via RobotManager::CreateRobot(). Type picker (role assignment). Stat panel reads FMXRobotProfile. Edit capabilities for testing.
 **Depends On:** UMXRobotManager (Agent 2), UMXSpecTree (Agent 5), AMXRobotActor
+

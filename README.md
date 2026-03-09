@@ -8,7 +8,7 @@ Miniaturised mannequin robots navigate procedurally generated hazard levels. Bet
 
 ## Current State
 
-**Phase 2 — Editor Integration.** The C++ engine logic (120+ files, 14 modules) compiles and is being connected to Unreal Editor visuals. A spawn test level exists with miniaturised robots, name display, and an RTS camera controller. Next: linking the SandboxCharacter_CMC Blueprint, tilt-shift camera activation, and factory lobby prototyping.
+**Phase 2C-Move — Selection, Click-to-Move, Procedural Floor.** The C++ engine logic (~130 files, 14 modules) compiles and is connected to Unreal Editor visuals. A spawn test level features miniaturised robots on a procedurally generated collision floor. Players can select robots (click, box-drag, Ctrl+groups) and right-click to issue move commands. RTS camera with zoom, pan, and rotation. Next: walk animation, box select HUD, SandboxCharacter_CMC integration.
 
 See [CHANGE_LOG.md](CHANGE_LOG.md) for detailed session history.
 
@@ -16,7 +16,7 @@ See [CHANGE_LOG.md](CHANGE_LOG.md) for detailed session history.
 
 ```
 MicroExodus/
-├── Source/MicroExodus/       ← All C++ source files (flat structure, 120+ files)
+├── Source/MicroExodus/       ← All C++ source files (flat structure, ~130 files)
 ├── Content/
 │   ├── Blueprints/           ← BP_MXGameInstance, BP_MXRobot, BP_MXSpawnTestGameMode,
 │   │                            SandboxCharacter_CMC (from Game Animation Sample)

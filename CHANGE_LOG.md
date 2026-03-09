@@ -4,26 +4,90 @@ All notable changes to this project are documented here. Entries are reverse-chr
 
 ---
 
+## [2026-03-09] — Name Evolution System: Dynamic Compound Robot Names
+
+**Chat:** Dev chat (DEMS lifecycle naming)
+**Phase:** Identity Module Enhancement
+
+### Changes
+- Created `MXNameEvolution.h/.cpp` — UMXNameEvolution class that builds compound names from lifecycle milestones
+- Created `NameEvolution_SetupGuide.md` — deployment instructions with exact patches for MXRobotProfile, GameInstance, and RobotManager
+
+### Design
+- Name formula: `[FirstName] [Surname] [The Title]`
+  - FirstName: birth name from NameGenerator (immutable)
+  - Surname: earned after 5 runs survived, role-themed (deterministic from GUID)
+  - Title: from existing CheckTitles system, prefixed with "The"
+- Example progression: "Bolt" → "Bolt Sprocket" → "Bolt Sprocket The Fireproof"
+- 68 hardcoded fallback surnames: 20 universal + 16 Scout + 16 Guardian + 16 Engineer
+- Optional DT_Surnames DataTable for designer override
+- Deterministic surname from GUID hash (same robot always gets same surname)
+
+### Required Patches (3 existing files)
+1. `MXRobotProfile.h` — add `FString surname` field after `name`
+2. `MXGameInstance.h/.cpp` — create and wire UMXNameEvolution in Init()
+3. `MXRobotManager.cpp` — call EvaluateNameEvolution after run stats update
+
+### Files Delivered
+- MXNameEvolution.h, MXNameEvolution.cpp
+- NameEvolution_SetupGuide.md
+
+---
+
+## [2026-03-09] — Phase 2C-Move: Selection + Click-to-Move + Procedural Floor
+
+**Chat:** Dev chat (selection & movement objective)
+**Phase:** 2C-Move
+
+### Changes
+- Created `MXSelectionManager.h/.cpp` — selection component: left-click single select, box-drag select, Shift+click additive, Ctrl+1-9 control groups, Ctrl+A select all, hover tracking
+- Created `MXTestFloorGenerator.h/.cpp` — procedural grid floor (10x10 tiles, 200cm each) with collision via engine Cube mesh. Checkerboard pattern. Replaces manual Plane mesh.
+- Modified `MXRobotActor.h/.cpp` — added SetSelected/SetHovered, MoveToLocation/StopMoving with CharacterMovementComponent, selection ring (cylinder mesh), conditional name display (hidden by default, shown on hover or select). Removed GravityScale=0 hack.
+- Modified `MXRTSPlayerController.h/.cpp` — integrated UMXSelectionManager as component, added HandleLeftMouseInput (click + box drag), HandleRightClickMove (short right-click = move command), HandleControlGroups (Ctrl+number save, number recall), HandleSelectAll (Ctrl+A). Right-click distinguishes move vs rotate by click duration (<0.25s).
+- Modified `MXSpawnTestGameMode.h/.cpp` — rewired spawn order: floor → robots → camera. Robots spawn at random floor positions. FloorGeneratorClass configurable. Removed manual floor plane spawning.
+- Created `Phase2C_Move_SetupGuide.md` — deployment instructions, compilation notes, test checklist
+
+### Decisions
+- Selection state stored as TWeakObjectPtr<AMXRobotActor> for safety (handles actor destruction)
+- Movement uses ACharacter::AddMovementInput — CharacterMovementComponent handles physics/gravity
+- Multi-robot move command uses circular formation (spacing = 40cm * sqrt(N))
+- Right-click move vs rotate distinguished by click duration threshold (0.25s) and drag distance (10px)
+- Floor uses /Engine/BasicShapes/Cube scaled flat rather than ProceduralMeshComponent for simplicity
+- Box select threshold 5px to distinguish click from drag
+
+### Issues Resolved
+- Issue #2: Name text now hidden by default, shown on hover/selection only
+- Issue #3: Procedural floor with collision replaces manual Plane. GravityScale=0 removed.
+
+### New Issues
+- Issue #6: Box select rectangle not drawn on screen (needs HUD class — selection still works)
+- Issue #7: Right-click move/rotate time threshold may need tuning
+- Issue #8: Floor tile BasicShapeMaterial may not accept "Color" vector param (cosmetic)
+
+### Compilation Notes
+- May need `GetRobotManager()` accessor on UMXGameInstance
+- May need to adjust `GetRobotProfile()` call to use interface Execute_ pattern
+- See Phase2C_Move_SetupGuide.md for full details
+
+### Files Delivered
+- MXSelectionManager.h, MXSelectionManager.cpp
+- MXTestFloorGenerator.h, MXTestFloorGenerator.cpp
+- MXRobotActor.h, MXRobotActor.cpp (modified)
+- MXRTSPlayerController.h, MXRTSPlayerController.cpp (modified)
+- MXSpawnTestGameMode.h, MXSpawnTestGameMode.cpp (modified)
+- Phase2C_Move_SetupGuide.md
+
+---
+
 ## [2026-03-09] — PM Audit: Tracking Document Refresh
 
 **Phase:** Project Management
 
 ### Changes
-- Updated `Claude.md` — fixed Phase 2B status from "In Progress" to "Complete", added Phase 2-Next to roadmap, added doc-sync convention to Critical Conventions, cleaned up known issues list (removed resolved items about README/CHANGE_LOG)
+- Updated `Claude.md` — fixed Phase 2B status from "In Progress" to "Complete", added Phase 2-Next to roadmap, added doc-sync convention to Critical Conventions
 - Updated `Agents.md` — bumped date to 2026-03-09
-- Verified `README.md` — already reflects current state (flat structure, 14 modules, UE5.7, Phase 2 progress). No changes needed.
-- Verified `CHANGE_LOG.md` — entries accurate and chronological. Added this audit entry.
-
-### Resolved Issues
-- ~~README.md outdated~~ — already fixed in a prior session
-- ~~No CHANGE_LOG.md exists~~ — created in a prior session
-
-### Current Known Issues (5 remaining)
-1. Robots in T-pose (no AnimBP assigned)
-2. Name text display always visible (should be hover/selection only)
-3. Test floor is manual Plane mesh — no collision, GravityScale=0 workaround
-4. Scroll wheel zoom uses IsInputKeyDown — may miss fast scrolls
-5. SandboxCharacter_CMC.uasset not yet inspected for skeleton compatibility
+- Verified `README.md` — already reflects current state. No changes needed.
+- Verified `CHANGE_LOG.md` — entries accurate and chronological.
 
 ---
 
@@ -87,15 +151,13 @@ All notable changes to this project are documented here. Entries are reverse-chr
 **Phase:** 1 (Engine Logic)
 
 ### Changes
-- Created `MXRobotFactoryData.h` (203 lines) — EFactoryUpgrade, ERecruitSource, FMXFactoryUpgradeLevel, FMXFactoryState, FMXRecruitCandidate, FMXSalvageDrop, FMXLobbyPool
-- Created `MXRobotCodec.h` (193 lines) — GUID-to-shareable-code conversion (Base32 Crockford, XXXX-XXXX-XXXX-XXXX format)
-- Created `MXRobotCodec.cpp` (261 lines) — encode/decode, seed derivation, assembly GUID derivation
-- Created `MXRobotFactory.h` (340 lines) — lobby manager: BuildLobbyPool, ToggleCandidateSelection, RedeemCode, PurchaseUpgrade
-- Created `MXRobotFactory.cpp` (609 lines) — full implementation with exponential cost scaling, tier-based recruit counts
+- Created `MXRobotFactoryData.h` — EFactoryUpgrade, ERecruitSource, FMXFactoryState, FMXRecruitCandidate, FMXSalvageDrop, FMXLobbyPool
+- Created `MXRobotCodec.h/.cpp` — GUID-to-shareable-code conversion (Base32 Crockford)
+- Created `MXRobotFactory.h/.cpp` — lobby manager: BuildLobbyPool, ToggleCandidateSelection, RedeemCode, PurchaseUpgrade
 
 ### Decisions
-- Robot codes are generation seeds (not compressed GUIDs) — same code produces identical robot on any machine
-- CodeTerminal upgrade costs 50 salvage parts to unlock code redemption
+- Robot codes are generation seeds (not compressed GUIDs)
+- CodeTerminal upgrade costs 50 salvage parts
 - 8 factory upgrades with 1.5× exponential cost scaling
 
 ---
@@ -105,11 +167,9 @@ All notable changes to this project are documented here. Entries are reverse-chr
 **Phase:** 1 (Engine Logic)
 
 ### Changes
-- Created `MXRobotAssemblyData.h` — EPartSlot (5 slots), FMXPartDefinition, FMXAssemblyRecipe, FMXPartDamageState
-- Created `MXRobotAssembler.h/.cpp` — modular mesh system with per-part LOD for 100 robots
-- Created `MXPartDestructionManager.h/.cpp` — per-part damage tracking, destruction thresholds
-- Created `MXPartDestructionData.h` — damage state data structures
-- Created `MXPartDestructionVisuals.cpp` — visual feedback for part damage
+- Created `MXRobotAssemblyData.h` — EPartSlot (5 slots), FMXPartDefinition, FMXAssemblyRecipe
+- Created `MXRobotAssembler.h/.cpp` — modular mesh system with per-part LOD
+- Created `MXPartDestructionManager.h/.cpp` — per-part damage tracking
 
 ---
 
@@ -121,7 +181,6 @@ All notable changes to this project are documented here. Entries are reverse-chr
 - Created procedural level generation system (20-level layouts)
 - Room types: corridors, arenas, gauntlets, puzzle rooms
 - Hazard placement with element theming per level
-- Rescue robot spawn point generation
 
 ---
 
@@ -132,14 +191,13 @@ All notable changes to this project are documented here. Entries are reverse-chr
 ### Changes
 - Audited entire codebase for compilation errors
 - Catalogued 13 recurring error patterns across all agent-generated modules
-- Fixed: subdirectory prefix issues, wrong UE5 module paths, circular includes, UFUNCTION on FArchive methods, namespace qualification (MX:: vs bare), field name mismatches, delegate signatures
 - Established flat include structure as project convention
 - All 94+ files (Phases 1-9) confirmed compiling
 
 ### Decisions
-- Flat source structure mandatory — no `#include "Camera/MXSwarmCamera.h"`, only `#include "MXSwarmCamera.h"`
-- Forward declarations preferred over full includes in headers to avoid circular deps
-- EventBus lookup pattern standardised across all modules
+- Flat source structure mandatory
+- Forward declarations preferred over full includes in headers
+- EventBus lookup pattern standardised
 - For systematic errors, full audit first — not reactive one-at-a-time patching
 
 ---
@@ -151,11 +209,4 @@ All notable changes to this project are documented here. Entries are reverse-chr
 ### Changes
 - 12 original modules generated by specialised AI agents (Agents 0-11)
 - Each agent built independently without awareness of others
-- Agent 0 (Shared) defined all cross-module contracts
-- Agents 1-11 implemented their respective modules against contracts
 - ~94 initial source files created
-
-### Known Issues at Generation
-- Systematic cross-cutting integration errors (13 patterns catalogued in audit)
-- Each agent made independent assumptions about include paths, API names, enum values
-- No end-to-end compilation test performed during generation

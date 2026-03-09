@@ -1,14 +1,15 @@
-// MXSpawnTestGameMode.cpp — Phase 2A: Spawn Test GameMode
-// Created: 2026-03-06
+// MXSpawnTestGameMode.cpp — Phase 2C-Move Update
+// Originally created: Phase 2A
+// Updated: 2026-03-09
 
 #include "MXSpawnTestGameMode.h"
 #include "MXRobotActor.h"
 #include "MXCameraRig.h"
+#include "MXTestFloorGenerator.h"
 #include "MXRTSPlayerController.h"
-#include "MXGameInstance.h"
 #include "MXRobotManager.h"
-#include "MXRobotProfile.h"
 #include "MXSwarmCamera.h"
+#include "MXGameInstance.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -18,13 +19,16 @@
 
 AMXSpawnTestGameMode::AMXSpawnTestGameMode()
 {
-    // Default classes — can be overridden in Blueprint or World Settings.
-    RobotActorClass = AMXRobotActor::StaticClass();
-    CameraRigClass  = AMXCameraRig::StaticClass();
+    // Use the RTS controller (handles camera + selection + movement).
     PlayerControllerClass = AMXRTSPlayerController::StaticClass();
 
-    // No default pawn — the RTS controller drives the CameraRig directly.
+    // No pawn — the controller drives the camera rig directly.
     DefaultPawnClass = nullptr;
+
+    // Default classes (can be overridden in Blueprint).
+    RobotActorClass = AMXRobotActor::StaticClass();
+    CameraRigClass = AMXCameraRig::StaticClass();
+    FloorGeneratorClass = AMXTestFloorGenerator::StaticClass();
 }
 
 // ---------------------------------------------------------------------------
@@ -35,191 +39,162 @@ void AMXSpawnTestGameMode::BeginPlay()
 {
     Super::BeginPlay();
 
-    UE_LOG(LogTemp, Log, TEXT("========================================"));
-    UE_LOG(LogTemp, Log, TEXT("[MXSpawnTest] Phase 2A Spawn Test BEGIN"));
-    UE_LOG(LogTemp, Log, TEXT("========================================"));
+    // Order matters: floor first (so robots have collision surface),
+    // then robots, then camera (needs robot positions for centroid).
+    SpawnFloor();
+    SpawnRobots();
+    SpawnCamera();
 
-    // ---- Step 1: Get the GameInstance and RobotManager ----
+    UE_LOG(LogTemp, Log,
+        TEXT("MXSpawnTestGameMode: Setup complete — %d robots on %dx%d floor."),
+        SpawnedRobots.Num(), FloorGridX, FloorGridY);
+}
 
-    UMXGameInstance* MXGameInstance = Cast<UMXGameInstance>(GetGameInstance());
-    if (!MXGameInstance)
+// ---------------------------------------------------------------------------
+// SpawnFloor
+// ---------------------------------------------------------------------------
+
+void AMXSpawnTestGameMode::SpawnFloor()
+{
+    UWorld* World = GetWorld();
+    if (!World || !FloorGeneratorClass) return;
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    SpawnedFloor = World->SpawnActor<AMXTestFloorGenerator>(
+        FloorGeneratorClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+
+    if (SpawnedFloor)
     {
-        UE_LOG(LogTemp, Error,
-            TEXT("[MXSpawnTest] GameInstance is not UMXGameInstance! "
-                 "Check DefaultEngine.ini GameInstanceClass setting."));
-        return;
-    }
+        // Apply config.
+        SpawnedFloor->GridSizeX = FloorGridX;
+        SpawnedFloor->GridSizeY = FloorGridY;
+        SpawnedFloor->TileSize = FloorTileSize;
+        SpawnedFloor->FloorZ = 0.0f;
 
-    UMXRobotManager* RobotManager = MXGameInstance->GetRobotManager();
+        // Generate (bAutoGenerate is true by default, but we set config after spawn
+        // so we need to regenerate with our values).
+        SpawnedFloor->GenerateFloor();
+
+        UE_LOG(LogTemp, Log, TEXT("MXSpawnTestGameMode: Floor generated (%dx%d)."),
+               FloorGridX, FloorGridY);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// SpawnRobots
+// ---------------------------------------------------------------------------
+
+void AMXSpawnTestGameMode::SpawnRobots()
+{
+    UWorld* World = GetWorld();
+    if (!World || !RobotActorClass) return;
+
+    // Get the RobotManager from GameInstance.
+    UMXGameInstance* GI = Cast<UMXGameInstance>(UGameplayStatics::GetGameInstance(this));
+    UMXRobotManager* RobotManager = GI ? GI->GetRobotManager() : nullptr;
+
     if (!RobotManager)
     {
-        UE_LOG(LogTemp, Error,
-            TEXT("[MXSpawnTest] RobotManager is null! UMXGameInstance::Init() may have failed."));
-        return;
+        UE_LOG(LogTemp, Warning,
+            TEXT("MXSpawnTestGameMode: No RobotManager — spawning robots without Identity module."));
     }
-
-    UE_LOG(LogTemp, Log, TEXT("[MXSpawnTest] GameInstance and RobotManager OK."));
-
-    // ---- Step 2: Create robot profiles via the Identity module ----
-
-    TArray<FGuid> RobotIds;
-    const int32 RunNumber = 1;
-    const int32 LevelNumber = 1;
 
     for (int32 i = 0; i < NumRobots; ++i)
     {
-        FGuid NewId = RobotManager->CreateRobot(LevelNumber, RunNumber);
-        if (NewId.IsValid())
+        // Get a position on the floor.
+        FVector SpawnPos = FVector::ZeroVector;
+        if (SpawnedFloor)
         {
-            RobotIds.Add(NewId);
+            SpawnPos = SpawnedFloor->GetRandomFloorPosition(100.0f);
+            SpawnPos.Z += 20.0f; // Slightly above floor for spawn safety.
         }
         else
         {
-            UE_LOG(LogTemp, Warning,
-                TEXT("[MXSpawnTest] CreateRobot failed at index %d (roster full?)."), i);
+            // Fallback: circle layout.
+            float Angle = (2.0f * PI * i) / NumRobots;
+            SpawnPos = FVector(FMath::Cos(Angle) * 200.0f, FMath::Sin(Angle) * 200.0f, 20.0f);
         }
-    }
-
-    UE_LOG(LogTemp, Log, TEXT("[MXSpawnTest] Created %d robot profiles."), RobotIds.Num());
-
-    // ---- Step 3: Spawn robot actors at staggered positions ----
-
-    if (!RobotActorClass)
-    {
-        UE_LOG(LogTemp, Error, TEXT("[MXSpawnTest] RobotActorClass is null!"));
-        return;
-    }
-
-    TArray<FVector> SpawnPositions = CalculateSpawnPositions(RobotIds.Num(), SpawnRadius, FloorZ);
-
-    for (int32 i = 0; i < RobotIds.Num(); ++i)
-    {
-        FVector SpawnLocation = SpawnPositions.IsValidIndex(i)
-            ? SpawnPositions[i]
-            : FVector(i * 80.0f, 0.0f, FloorZ); // Fallback: line formation
 
         FActorSpawnParameters SpawnParams;
         SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-        AMXRobotActor* RobotActor = GetWorld()->SpawnActor<AMXRobotActor>(
-            RobotActorClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+        AMXRobotActor* Robot = World->SpawnActor<AMXRobotActor>(
+            RobotActorClass, SpawnPos, FRotator::ZeroRotator, SpawnParams);
 
-        if (!RobotActor)
+        if (!Robot) continue;
+
+        // Bind to Identity module profile (if available).
+        FGuid RobotId;
+        FString RobotNameStr;
+
+        if (RobotManager)
         {
-            UE_LOG(LogTemp, Warning, TEXT("[MXSpawnTest] Failed to spawn robot actor at index %d."), i);
-            continue;
-        }
-
-        // Bind identity data to the actor.
-        FMXRobotProfile Profile = RobotManager->GetRobotProfile_Implementation(RobotIds[i]);
-        RobotActor->BindToProfile(Profile.robot_id, Profile.name);
-
-        SpawnedRobots.Add(RobotActor);
-
-        UE_LOG(LogTemp, Log, TEXT("[MXSpawnTest] Spawned robot '%s' at (%.0f, %.0f, %.0f)"),
-               *Profile.name, SpawnLocation.X, SpawnLocation.Y, SpawnLocation.Z);
-    }
-
-    UE_LOG(LogTemp, Log, TEXT("[MXSpawnTest] Spawned %d robot actors."), SpawnedRobots.Num());
-
-    // ---- Step 4: Spawn the Camera Rig ----
-
-    if (!CameraRigClass)
-    {
-        UE_LOG(LogTemp, Error, TEXT("[MXSpawnTest] CameraRigClass is null!"));
-        return;
-    }
-
-    FVector CameraSpawnPos = FVector(0.0f, 0.0f, CameraRigZ);
-    CameraRig = GetWorld()->SpawnActor<AMXCameraRig>(
-        CameraRigClass, CameraSpawnPos, FRotator::ZeroRotator);
-
-    if (!CameraRig)
-    {
-        UE_LOG(LogTemp, Error, TEXT("[MXSpawnTest] Failed to spawn CameraRig!"));
-        return;
-    }
-
-    UE_LOG(LogTemp, Log, TEXT("[MXSpawnTest] CameraRig spawned at (%.0f, %.0f, %.0f)."),
-           CameraSpawnPos.X, CameraSpawnPos.Y, CameraSpawnPos.Z);
-
-    // ---- Step 5: Wire camera — initial position only, then hand off to RTS controller ----
-
-    UMXSwarmCamera* SwarmCamera = CameraRig->GetSwarmCamera();
-    if (SwarmCamera)
-    {
-        // Feed robot positions for future use (inspect mode, events, etc.).
-        SwarmCamera->SetSwarmTarget(RobotIds);
-        for (const AMXRobotActor* Robot : SpawnedRobots)
-        {
-            if (Robot)
+            RobotId = RobotManager->CreateRobot(1, 1); // LevelNumber=1, RunNumber=1
+            if (RobotId.IsValid())
             {
-                SwarmCamera->UpdateRobotPosition(Robot->RobotId, Robot->GetActorLocation());
+                FMXRobotProfile Profile = RobotManager->GetRobotProfile(RobotId);
+                RobotNameStr = Profile.name;
             }
         }
 
-        // Position the rig at the swarm centroid so the camera starts centered.
-        FVector Centroid = FVector::ZeroVector;
-        for (const AMXRobotActor* Robot : SpawnedRobots)
+        // Fallback name if Identity module isn't available.
+        if (!RobotId.IsValid())
         {
-            if (Robot) Centroid += Robot->GetActorLocation();
+            RobotId = FGuid::NewGuid();
+            RobotNameStr = FString::Printf(TEXT("Robot-%02d"), i + 1);
         }
-        if (SpawnedRobots.Num() > 0)
-        {
-            Centroid /= static_cast<float>(SpawnedRobots.Num());
-        }
-        CameraRig->SetActorLocation(FVector(Centroid.X, Centroid.Y, CameraRigZ));
 
-        // Disable SwarmCamera tick — RTS controller now owns camera movement.
-        // SwarmCamera's TickPositionTracking would fight the RTS pan/zoom.
-        // Re-enable later when swarm tracking is needed during gameplay.
-        SwarmCamera->SetComponentTickEnabled(false);
-
-        UE_LOG(LogTemp, Log, TEXT("[MXSpawnTest] SwarmCamera positioned at centroid (%.0f, %.0f), tick DISABLED — RTS controller active."),
-               Centroid.X, Centroid.Y);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("[MXSpawnTest] CameraRig has no SwarmCamera component!"));
+        Robot->BindToProfile(RobotId, RobotNameStr);
+        SpawnedRobots.Add(Robot);
     }
 
-    // ---- Done ----
-
-    UE_LOG(LogTemp, Log, TEXT("========================================"));
-    UE_LOG(LogTemp, Log, TEXT("[MXSpawnTest] Phase 2A Spawn Test COMPLETE"));
-    UE_LOG(LogTemp, Log, TEXT("  Robots: %d"), SpawnedRobots.Num());
-    UE_LOG(LogTemp, Log, TEXT("  Camera: %s"), CameraRig ? TEXT("Active") : TEXT("FAILED"));
-    UE_LOG(LogTemp, Log, TEXT("========================================"));
+    UE_LOG(LogTemp, Log, TEXT("MXSpawnTestGameMode: Spawned %d robots."), SpawnedRobots.Num());
 }
 
 // ---------------------------------------------------------------------------
-// CalculateSpawnPositions
+// SpawnCamera
 // ---------------------------------------------------------------------------
 
-TArray<FVector> AMXSpawnTestGameMode::CalculateSpawnPositions(
-    int32 Count, float Radius, float Z) const
+void AMXSpawnTestGameMode::SpawnCamera()
 {
-    TArray<FVector> Positions;
-    Positions.Reserve(Count);
+    UWorld* World = GetWorld();
+    if (!World || !CameraRigClass) return;
 
-    if (Count <= 0) return Positions;
-
-    if (Count == 1)
+    // Position camera at floor center, elevated.
+    FVector CameraPos = FVector::ZeroVector;
+    if (SpawnedFloor)
     {
-        Positions.Add(FVector(0.0f, 0.0f, Z));
-        return Positions;
+        CameraPos = SpawnedFloor->GetFloorCenter();
     }
 
-    // Arrange in a circle.
-    const float AngleStep = 360.0f / static_cast<float>(Count);
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-    for (int32 i = 0; i < Count; ++i)
+    SpawnedCameraRig = World->SpawnActor<AMXCameraRig>(
+        CameraRigClass, CameraPos, FRotator::ZeroRotator, SpawnParams);
+
+    if (!SpawnedCameraRig) return;
+
+    // Feed robot positions to the SwarmCamera for initial centroid calculation.
+    UMXSwarmCamera* SwarmCam = SpawnedCameraRig->FindComponentByClass<UMXSwarmCamera>();
+    if (SwarmCam)
     {
-        float AngleRad = FMath::DegreesToRadians(AngleStep * i);
-        float X = Radius * FMath::Cos(AngleRad);
-        float Y = Radius * FMath::Sin(AngleRad);
-        Positions.Add(FVector(X, Y, Z));
+        TArray<FGuid> RobotIds;
+        for (AMXRobotActor* Robot : SpawnedRobots)
+        {
+            if (Robot)
+            {
+                RobotIds.Add(Robot->RobotId);
+                SwarmCam->UpdateRobotPosition(Robot->RobotId, Robot->GetActorLocation());
+            }
+        }
+        SwarmCam->SetSwarmTarget(RobotIds);
+
+        // Disable SwarmCamera tick — RTS controller drives camera position.
+        SwarmCam->SetComponentTickEnabled(false);
     }
 
-    return Positions;
+    UE_LOG(LogTemp, Log, TEXT("MXSpawnTestGameMode: Camera rig spawned at floor center."));
 }
