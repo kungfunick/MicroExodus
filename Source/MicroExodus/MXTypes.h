@@ -97,6 +97,18 @@ enum class ERobotRole : uint8
     Engineer    UMETA(DisplayName = "Engineer"),
 };
 
+UENUM(BlueprintType)
+enum class ENameTheme : uint8
+{
+    Robot       UMETA(DisplayName = "Robot"),
+    Wizard      UMETA(DisplayName = "Wizard"),
+    Pirate      UMETA(DisplayName = "Pirate"),
+    Samurai     UMETA(DisplayName = "Samurai"),
+    SciFi       UMETA(DisplayName = "Sci-Fi"),
+    Mythic      UMETA(DisplayName = "Mythic"),
+    Custom      UMETA(DisplayName = "Custom"),
+};
+
 /** Tier 2 specialization â€” chosen when the robot meets the role unlock threshold. */
 UENUM(BlueprintType)
 enum class ETier2Spec : uint8

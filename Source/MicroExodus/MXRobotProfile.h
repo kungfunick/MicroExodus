@@ -31,7 +31,15 @@ struct MICROEXODUS_API FMXRobotProfile
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FString name;
 
-    /** Wall-clock timestamp of when this robot was created (first added to the roster). */
+    /** Surname earned at lifecycle milestone (5 runs survived). Role-themed. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FString surname;
+
+    /** Naming theme stamped at birth from the run's selected theme. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    ENameTheme name_theme = ENameTheme::Robot;
+
+    /** Wall-clock timestamp of when this robot was created... */
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FDateTime date_of_birth;
 

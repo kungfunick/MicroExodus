@@ -30,22 +30,6 @@
 #include "MXNameTheme.generated.h"
 
 // ---------------------------------------------------------------------------
-// ENameTheme — Theme identifiers (stored on FMXRobotProfile)
-// ---------------------------------------------------------------------------
-
-UENUM(BlueprintType)
-enum class ENameTheme : uint8
-{
-    Robot       UMETA(DisplayName = "Robot"),
-    Wizard      UMETA(DisplayName = "Wizard"),
-    Pirate      UMETA(DisplayName = "Pirate"),
-    Samurai     UMETA(DisplayName = "Samurai"),
-    SciFi       UMETA(DisplayName = "Sci-Fi"),
-    Mythic      UMETA(DisplayName = "Mythic"),
-    Custom      UMETA(DisplayName = "Custom"),
-};
-
-// ---------------------------------------------------------------------------
 // FMXNameThemeData — Complete theme definition
 // ---------------------------------------------------------------------------
 
