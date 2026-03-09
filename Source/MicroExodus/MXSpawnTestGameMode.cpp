@@ -8,6 +8,7 @@
 #include "MXTestFloorGenerator.h"
 #include "MXRTSPlayerController.h"
 #include "MXRobotManager.h"
+#include "MXInterfaces.h"
 #include "MXSwarmCamera.h"
 #include "MXGameInstance.h"
 #include "Engine/World.h"
@@ -134,7 +135,7 @@ void AMXSpawnTestGameMode::SpawnRobots()
             RobotId = RobotManager->CreateRobot(1, 1); // LevelNumber=1, RunNumber=1
             if (RobotId.IsValid())
             {
-                FMXRobotProfile Profile = RobotManager->GetRobotProfile(RobotId);
+                FMXRobotProfile Profile = IMXRobotProvider::Execute_GetRobotProfile(RobotManager, RobotId);
                 RobotNameStr = Profile.name;
             }
         }

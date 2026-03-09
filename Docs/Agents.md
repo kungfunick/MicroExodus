@@ -80,7 +80,7 @@ Bus->OnRobotDied.AddDynamic(this, &UMyClass::HandleRobotDied);
 ## Agent 2: Identity
 
 **Status:** Compiling ✓
-**Files:** MXRobotManager.h/cpp, MXNameGenerator.h/cpp, MXNameEvolution.h/cpp, MXPersonalityGenerator.h/cpp, MXLifeLog.h/cpp, MXAgingSystem.h/cpp
+**Files:** MXRobotManager.h/cpp, MXNameGenerator.h/cpp, MXNameEvolution.h/cpp, MXNameTheme.h/cpp, MXPersonalityGenerator.h/cpp, MXLifeLog.h/cpp, MXAgingSystem.h/cpp
 
 **Key Functions:**
 - `UMXRobotManager::Initialize(UMXNameGenerator*, UMXPersonalityGenerator*, UMXLifeLog*, UMXAgingSystem*)` — **requires all four pointers**
@@ -92,27 +92,34 @@ Bus->OnRobotDied.AddDynamic(this, &UMyClass::HandleRobotDied);
 - `UMXRobotManager::CheckTitles(FGuid)` — awards titles based on stat thresholds (Veteran, Firewalker, etc.)
 - `UMXNameGenerator::GenerateName()` → FString (fallback names if no DataTable)
 - `UMXNameGenerator::ReleaseName(FString, int32)` — returns name to pool with cooldown
-- `UMXNameEvolution::EvaluateNameEvolution(FMXRobotProfile&)` → bool (rolls surname at 5 runs survived)
-- `UMXNameEvolution::GetDisplayName(FMXRobotProfile)` → FString ("[Name] [Surname] [The Title]")
+- `UMXNameEvolution::EvaluateNameEvolution(FMXRobotProfile&)` → bool (rolls themed surname at 5 runs survived)
+- `UMXNameEvolution::GetDisplayName(FMXRobotProfile)` → FString ("[Name] [Surname] [Prefix Title]")
 - `UMXNameEvolution::GetShortName(FMXRobotProfile)` → FString ("[Name] [Surname]")
-- `UMXNameEvolution::RollSurname(FGuid, ERobotRole)` → FString (deterministic from GUID)
+- `UMXNameEvolution::RollSurname(FGuid, ERobotRole, ENameTheme)` → FString (deterministic from GUID, theme-aware)
+- `UMXNameThemeManager::GetFirstNames(ENameTheme)` → themed first name pool
+- `UMXNameThemeManager::GetSurnames(ENameTheme, ERobotRole)` → themed surname pool
+- `UMXNameThemeManager::GetThemedTitle(ENameTheme, FString)` → title alias lookup
 
-**Name Evolution (new):**
-- Surname earned at 5 runs survived, role-themed (Scout/Guardian/Engineer pools + universal)
-- 68 hardcoded fallback surnames, optional DT_Surnames DataTable override
-- Display name = "[FirstName] [Surname] [The Title]" — e.g., "Bolt Sprocket The Fireproof"
-- FMXRobotProfile.surname field (requires patch to MXRobotProfile.h)
+**Themed Name Evolution (new):**
+- Theme is per-RUN, stamped onto every robot born/rescued during that run via profile.name_theme
+- Robots keep their theme forever → mixed roster from different themed runs
+- 6 built-in themes: Robot, Wizard, Pirate, Samurai, SciFi, Mythic (~420 names total)
+- Each theme: first name pool, per-role surnames, title aliases, title prefix
+- Pirate: "Barnacle Planksworth Captain Scourge" / Wizard: "Ember Hexfire The Great Pyromancer"
+- FMXRobotProfile needs: surname (FString), name_theme (ENameTheme) fields
+- Custom themes loadable from DataTables via RegisterCustomTheme()
 
 **Wiring (from GameInstance::Init):**
 - NameGenerator = NewObject → optional LoadFromDataTable(NamesTable)
 - PersonalityGenerator = NewObject → optional LoadFromDataTable(PersonalitiesTable)
 - LifeLog = NewObject, AgingSystem = NewObject
-- NameEvolution = NewObject → Initialize(SurnameTable or nullptr)
+- NameEvolution = NewObject → Initialize(NameThemeManager)
+- NameThemeManager = NewObject → Initialize()
 - RobotManager->Initialize(NameGen, PersonalityGen, LifeLog, AgingSystem)
 
 **Implements:** IMXRobotProvider, IMXEventListener, IMXPersistable
 **Listens To:** OnRobotDied, OnRobotRescued, OnRobotSacrificed, OnNearMiss, OnLevelComplete, OnRunComplete, OnRunFailed, OnHatEquipped, OnHatLost, OnSpecChosen
-**DataTables:** DT_Names (optional), DT_Personalities (optional), DT_Surnames (optional)
+**DataTables:** DT_Names (optional), DT_Personalities (optional), DT_NameTheme_* (optional, for custom themes)
 
 ---
 

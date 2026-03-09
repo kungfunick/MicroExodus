@@ -4,33 +4,37 @@ All notable changes to this project are documented here. Entries are reverse-chr
 
 ---
 
-## [2026-03-09] — Name Evolution System: Dynamic Compound Robot Names
+## [2026-03-09] — Themed Name Evolution: Per-Robot Flavour Packs
 
-**Chat:** Dev chat (DEMS lifecycle naming)
+**Chat:** Dev chat (DEMS themed naming)
 **Phase:** Identity Module Enhancement
 
 ### Changes
-- Created `MXNameEvolution.h/.cpp` — UMXNameEvolution class that builds compound names from lifecycle milestones
-- Created `NameEvolution_SetupGuide.md` — deployment instructions with exact patches for MXRobotProfile, GameInstance, and RobotManager
+- Created `MXNameTheme.h/.cpp` — UMXNameThemeManager registry with 6 built-in themes (Robot, Wizard, Pirate, Samurai, SciFi, Mythic). Per-robot themes stamped at birth from the run's selection.
+- Created `MXNameEvolution.h/.cpp` — theme-aware name composer. Reads profile.name_theme to select correct surname pool + title aliases.
+- Created `ThemedNameEvolution_SetupGuide.md` — deployment instructions
 
 ### Design
-- Name formula: `[FirstName] [Surname] [The Title]`
-  - FirstName: birth name from NameGenerator (immutable)
-  - Surname: earned after 5 runs survived, role-themed (deterministic from GUID)
-  - Title: from existing CheckTitles system, prefixed with "The"
-- Example progression: "Bolt" → "Bolt Sprocket" → "Bolt Sprocket The Fireproof"
-- 68 hardcoded fallback surnames: 20 universal + 16 Scout + 16 Guardian + 16 Engineer
-- Optional DT_Surnames DataTable for designer override
-- Deterministic surname from GUID hash (same robot always gets same surname)
+- Theme is per-RUN, not global. Player picks theme at run launch. All robots born/rescued inherit it.
+- Robots keep their theme forever → mixed roster from different themed runs
+- Name formula: `[FirstName] [Surname] [Prefix Title]`
+  - Pirate: "Barnacle Planksworth Captain Scourge"
+  - Wizard: "Ember Hexfire The Great Pyromancer"
+  - Samurai: "Kumo Hayabusa Honourable Flame Dancer"
+- Each theme provides: first name pool, per-role surnames, title aliases, title prefix
+- 6 themes × ~30 first names + ~26 surnames + ~14 title aliases each = ~420 names total
+- Themes unlockable via achievements (Robot always available)
+- DEMS templates unaffected — they consume {name}/{title} which NameEvolution composes
 
 ### Required Patches (3 existing files)
-1. `MXRobotProfile.h` — add `FString surname` field after `name`
-2. `MXGameInstance.h/.cpp` — create and wire UMXNameEvolution in Init()
-3. `MXRobotManager.cpp` — call EvaluateNameEvolution after run stats update
+1. `MXRobotProfile.h` — add `FString surname` + `ENameTheme name_theme` fields
+2. `MXGameInstance.h/.cpp` — create and wire ThemeManager + NameEvolution in Init()
+3. `MXRobotManager.cpp` — stamp run theme on CreateRobot, call EvaluateNameEvolution post-run
 
 ### Files Delivered
+- MXNameTheme.h, MXNameTheme.cpp
 - MXNameEvolution.h, MXNameEvolution.cpp
-- NameEvolution_SetupGuide.md
+- ThemedNameEvolution_SetupGuide.md
 
 ---
 

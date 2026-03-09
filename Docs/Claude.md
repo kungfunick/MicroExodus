@@ -31,10 +31,11 @@ All cross-module communication uses: events (MXEvents.h delegates), interfaces (
 - AMXSpawnTestGameMode updated: spawns floor → robots → camera in correct order
 - GravityScale=0 hack removed (floor now has proper collision)
 
-**Name Evolution (New):** UMXNameEvolution system builds compound robot names from lifecycle:
-- Birth: "Bolt" → 5 runs survived: "Bolt Sprocket" → achievement: "Bolt Sprocket The Fireproof"
-- Requires 3 patches: surname field on FMXRobotProfile, GameInstance wiring, RobotManager call
-- See NameEvolution_SetupGuide.md for exact patches
+**Themed Name Evolution (New):** Per-robot naming themes stamped at birth from run selection:
+- 6 themes: Robot, Wizard, Pirate, Samurai, SciFi, Mythic (~420 names)
+- Theme is per-RUN → mixed roster: "Barnacle Planksworth Captain Scourge" next to "Bolt Sprocket The Fireproof"
+- Requires 3 patches: surname + name_theme on FMXRobotProfile, GameInstance wiring, RobotManager stamping
+- See ThemedNameEvolution_SetupGuide.md for details
 
 **Known Issues:**
 1. Robots in T-pose (no AnimBP assigned)
