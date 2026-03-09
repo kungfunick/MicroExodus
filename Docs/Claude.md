@@ -37,15 +37,11 @@ All cross-module communication uses: events (MXEvents.h delegates), interfaces (
 - Requires 3 patches: surname + name_theme on FMXRobotProfile, GameInstance wiring, RobotManager stamping
 - See ThemedNameEvolution_SetupGuide.md for details
 
-**Known Issues:**
+**Known Issues:** See `ISSUES.md` for full tracker (8 open, 4 resolved). Key open items:
 1. Robots in T-pose (no AnimBP assigned)
-2. ~~Name text display always visible~~ → Fixed: now hover/select only
-3. ~~Manual plane mesh, no collision~~ → Fixed: procedural floor with collision
-4. Scroll wheel zoom uses IsInputKeyDown — may miss fast scrolls
-5. SandboxCharacter_CMC.uasset not yet inspected for skeleton compatibility
-6. Box select rectangle not drawn on screen (selection works, visual feedback pending)
-7. Right-click move vs rotate distinguished by click duration — may need tuning
-8. Floor tile material may not accept "Color" parameter (cosmetic only)
+2. ~~Edge-of-screen panning causes drift~~ → Fixed: removed entirely
+3. Box select rectangle not drawn on screen
+4. Themed naming system compiled but not wired
 
 ## File Structure
 
@@ -88,7 +84,7 @@ Core, CoreUObject, Engine, InputCore, Json, JsonUtilities, UMG, Slate, SlateCore
 - **Flat includes.** All `#include` paths are bare filenames (e.g., `#include "MXRobotManager.h"`) — no subdirectory prefixes.
 - **Blueprint serialisation overrides constructors.** Component transforms set in a C++ constructor get overwritten by Blueprint child class serialised values. Set transforms in BeginPlay instead.
 - **Forward declarations for circular deps.** Use `class UMXFoo;` after `.generated.h` include when headers would create circular dependencies.
-- **Update tracking docs after every session.** README.md, CHANGE_LOG.md, Claude.md, and Agents.md must all be synced to Claude.ai Project knowledge and GitHub after each phase.
+- **Update tracking docs after every session.** README.md, CHANGE_LOG.md, Claude.md, Agents.md, and ISSUES.md must all be synced to Claude.ai Project knowledge and GitHub after each phase.
 
 ## Planned Features (Next Up)
 

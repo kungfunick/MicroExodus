@@ -53,8 +53,8 @@ void AMXRTSPlayerController::PlayerTick(float DeltaTime)
     HandleZoom(DeltaTime);
     HandleRotation(DeltaTime);
     HandleKeyboardPan(DeltaTime);
-    HandleEdgePan(DeltaTime);
     HandleDragPan(DeltaTime);
+    HandleDoubleClickCenter();
 
     // ---- Selection ----
     HandleLeftMouseInput(DeltaTime);
@@ -164,39 +164,46 @@ void AMXRTSPlayerController::HandleKeyboardPan(float DeltaTime)
 }
 
 // ---------------------------------------------------------------------------
-// Camera: Edge Pan
+// Camera: Double-Click Center — snap camera to ground under cursor
 // ---------------------------------------------------------------------------
 
-void AMXRTSPlayerController::HandleEdgePan(float DeltaTime)
+void AMXRTSPlayerController::HandleDoubleClickCenter()
 {
     if (!CameraRig) return;
 
-    FVector2D MousePos;
-    GetMousePosition(MousePos.X, MousePos.Y);
+    // Detect double-click on left mouse (via timing).
+    static float LastClickTime = 0.0f;
+    static bool bWasLeftDown = false;
 
-    int32 VPX, VPY;
-    GetViewportSize(VPX, VPY);
-    if (VPX == 0 || VPY == 0) return;
+    bool bLeftDown = IsInputKeyDown(EKeys::LeftMouseButton);
 
-    float NormX = MousePos.X / (float)VPX;
-    float NormY = MousePos.Y / (float)VPY;
-
-    FVector Forward, Right;
-    GetPlanarDirections(Forward, Right);
-
-    FVector EdgePanDir = FVector::ZeroVector;
-
-    if (NormX < EdgePanThreshold)       EdgePanDir -= Right;
-    if (NormX > 1.0f - EdgePanThreshold) EdgePanDir += Right;
-    if (NormY < EdgePanThreshold)       EdgePanDir += Forward;
-    if (NormY > 1.0f - EdgePanThreshold) EdgePanDir -= Forward;
-
-    if (!EdgePanDir.IsNearlyZero())
+    if (bLeftDown && !bWasLeftDown)
     {
-        EdgePanDir.Normalize();
-        float ZoomScale = CachedSpringArm ? (CachedSpringArm->TargetArmLength / 800.0f) : 1.0f;
-        CameraRig->AddActorWorldOffset(EdgePanDir * EdgePanSpeed * ZoomScale * DeltaTime);
+        float Now = GetWorld()->GetTimeSeconds();
+        float TimeSinceLast = Now - LastClickTime;
+
+        if (TimeSinceLast < 0.3f && TimeSinceLast > 0.01f)
+        {
+            // Double-click detected — center camera on ground hit.
+            FVector GroundHit;
+            if (GetGroundHitUnderCursor(GroundHit))
+            {
+                // Keep the camera's current Z, just move XY.
+                FVector NewPos = CameraRig->GetActorLocation();
+                NewPos.X = GroundHit.X;
+                NewPos.Y = GroundHit.Y;
+                CameraRig->SetActorLocation(NewPos);
+
+                UE_LOG(LogTemp, Log,
+                    TEXT("MXRTSPlayerController: Double-click centered camera at (%.0f, %.0f)."),
+                    GroundHit.X, GroundHit.Y);
+            }
+        }
+
+        LastClickTime = Now;
     }
+
+    bWasLeftDown = bLeftDown;
 }
 
 // ---------------------------------------------------------------------------

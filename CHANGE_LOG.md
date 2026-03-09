@@ -4,6 +4,28 @@ All notable changes to this project are documented here. Entries are reverse-chr
 
 ---
 
+## [2026-03-09] — Camera Fix + Issue Tracker + Bug Fix Prompt
+
+**Chat:** Dev chat (selection & movement)
+**Phase:** 2C-Move (polish)
+
+### Changes
+- Modified `MXRTSPlayerController.h/.cpp` — removed HandleEdgePan entirely (caused camera drift), removed EdgePanSpeed/EdgePanThreshold config. Added HandleDoubleClickCenter (double-left-click ground to snap camera position).
+- Created `ISSUES.md` — living issue tracker with 8 open issues, 4 resolved, camera controls reference
+- Created `MicroExodus_BugFix_Prompt.md` — continuation prompt for bugs & fixes dev chat
+
+### Issues Resolved
+- ISS-R03: Edge-of-screen panning removed. Camera now uses: arrows, middle-drag, scroll zoom, right-click rotate, double-click center.
+- ISS-R04: Execute_GetRobotProfile crash (fixed in prior hotfix)
+
+### New Issues
+- ISS-008: Double-click center may conflict with future double-click-to-select-all-of-type
+
+### Camera Controls (Current)
+Arrow keys/WASD=pan, middle-drag=tablecloth pan, right-drag=rotate, scroll=zoom, double-click=center, left-click=select, left-drag=box select, short right-click=move command
+
+---
+
 ## [2026-03-09] — Themed Name Evolution: Per-Robot Flavour Packs
 
 **Chat:** Dev chat (DEMS themed naming)
