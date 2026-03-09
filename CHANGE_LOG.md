@@ -4,6 +4,29 @@ All notable changes to this project are documented here. Entries are reverse-chr
 
 ---
 
+## [2026-03-09] — PM Audit: Tracking Document Refresh
+
+**Phase:** Project Management
+
+### Changes
+- Updated `Claude.md` — fixed Phase 2B status from "In Progress" to "Complete", added Phase 2-Next to roadmap, added doc-sync convention to Critical Conventions, cleaned up known issues list (removed resolved items about README/CHANGE_LOG)
+- Updated `Agents.md` — bumped date to 2026-03-09
+- Verified `README.md` — already reflects current state (flat structure, 14 modules, UE5.7, Phase 2 progress). No changes needed.
+- Verified `CHANGE_LOG.md` — entries accurate and chronological. Added this audit entry.
+
+### Resolved Issues
+- ~~README.md outdated~~ — already fixed in a prior session
+- ~~No CHANGE_LOG.md exists~~ — created in a prior session
+
+### Current Known Issues (5 remaining)
+1. Robots in T-pose (no AnimBP assigned)
+2. Name text display always visible (should be hover/selection only)
+3. Test floor is manual Plane mesh — no collision, GravityScale=0 workaround
+4. Scroll wheel zoom uses IsInputKeyDown — may miss fast scrolls
+5. SandboxCharacter_CMC.uasset not yet inspected for skeleton compatibility
+
+---
+
 ## [2026-03-09] — Phase 2 Design & Project Management Setup
 
 **Phase:** Planning
@@ -21,9 +44,6 @@ All notable changes to this project are documented here. Entries are reverse-chr
 - Lyra patterns cherry-picked (Common UI, mannequin AnimBP) but NOT used as project base — too invasive for existing module architecture
 - Steve's UE Helpers adopted as C++ plugin for UI navigation and actor pooling
 - Need to inspect SandboxCharacter_CMC.uasset before deciding skeleton compatibility approach
-
-### New Issues
-- README.md outdated (references subdirectories, old 12-agent structure)
 
 ---
 

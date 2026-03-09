@@ -1,6 +1,6 @@
 # MicroExodus — Module Registry (Agents.md)
 
-**Last Updated:** 2026-03-08
+**Last Updated:** 2026-03-09
 
 ---
 
@@ -388,7 +388,7 @@ Bus->OnRobotDied.AddDynamic(this, &UMyClass::HandleRobotDied);
 
 ## Planned Modules (Not Started)
 
-### Phase 2B: RTS Camera Controller
+### Phase 2B: RTS Camera Controller (Complete)
 **Status:** Complete ✓
 **Files:** MXRTSPlayerController.h/cpp
 

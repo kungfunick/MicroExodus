@@ -1,6 +1,6 @@
 # MicroExodus — Claude Project Orientation
 
-**Last Updated:** 2026-03-08
+**Last Updated:** 2026-03-09
 **Repo:** github.com/kungfunick/MicroExodus
 **Engine:** Unreal Engine 5.7 (C++, DX12/SM6, Lumen, Substrate)
 
@@ -16,7 +16,7 @@ The C++ engine handles all game logic — calculations, profiles, events, proced
 
 All cross-module communication uses: events (MXEvents.h delegates), interfaces (MXInterfaces.h), and DataTables. No module directly references another module's concrete class — they communicate through the EventBus and provider interfaces.
 
-## Current State (Phase 2B)
+## Current State (Phase 2B Complete)
 
 **Compiling:** All 120+ source files compile after adding `class UMXTiltShiftEffect;` forward declaration to MXTimeDilation.h.
 
@@ -27,18 +27,17 @@ All cross-module communication uses: events (MXEvents.h delegates), interfaces (
 - MXSwarmCamera patched with UpdateRobotPosition() ✓
 - Test level L_SpawnTest with BP_MXSpawnTestGameMode ✓
 
-**Phase 2B (In Progress):** RTS Camera Controller:
+**Phase 2B (Complete):** RTS Camera Controller:
 - AMXRTSPlayerController with scroll zoom, right-click rotate, WASD pan, edge pan, middle-drag pan ✓
 - SwarmCamera tick disabled during RTS mode (prevents fighting pan) ✓
 - GameMode sets PlayerControllerClass and DefaultPawnClass = nullptr ✓
 
 **Known Issues:**
-- No robot selection system (box select, click, control groups)
-- Name text display needs work (show on hover/selection only, billboard fix)
-- Test floor is a manual Plane mesh — should use procedural generation
-- Robots in T-pose (no AnimBP assigned yet)
-- GravityScale set to 0 as workaround (floor plane lacks collision)
-- Scroll wheel zoom uses IsInputKeyDown which may need tuning (could miss fast scrolls)
+1. Robots in T-pose (no AnimBP assigned)
+2. Name text display always visible (should be hover/selection only)
+3. Test floor is manual Plane mesh — no collision, GravityScale=0 workaround
+4. Scroll wheel zoom uses IsInputKeyDown — may miss fast scrolls
+5. SandboxCharacter_CMC.uasset not yet inspected for skeleton compatibility
 
 ## File Structure
 
@@ -81,14 +80,15 @@ Core, CoreUObject, Engine, InputCore, Json, JsonUtilities, UMG, Slate, SlateCore
 - **Flat includes.** All `#include` paths are bare filenames (e.g., `#include "MXRobotManager.h"`) — no subdirectory prefixes.
 - **Blueprint serialisation overrides constructors.** Component transforms set in a C++ constructor get overwritten by Blueprint child class serialised values. Set transforms in BeginPlay instead.
 - **Forward declarations for circular deps.** Use `class UMXFoo;` after `.generated.h` include when headers would create circular dependencies.
+- **Update tracking docs after every session.** README.md, CHANGE_LOG.md, Claude.md, and Agents.md must all be synced to Claude.ai Project knowledge and GitHub after each phase or mini-phase.
 
-## Planned Features (Not Started)
+## Planned Features (Next Up)
 
 See Agents.md for full module details. Upcoming work:
-- ~~**Phase 2B:** RTS camera controller~~ ✓
 - **Phase 2C:** Robot selection system (box select, click, Ctrl+number groups)
 - **Phase 2D:** Name display on hover/selection only
 - **Phase 2E:** Procedural floor generation (wire MXProceduralGen to test level)
 - **Phase 2F:** Robot spawn UI (+ button, type picker, stat viewer)
+- **Phase 2-Next:** Blueprint-to-C++ linking with SandboxCharacter_CMC, spawn test with names + tilt-shift camera (prompt ready)
 - **Phase 3:** Mannequin mesh, materials, idle animation
 - **Phase 4:** Robot movement, swarm behaviors, hazard testing
