@@ -32,6 +32,14 @@ void AMXRTSPlayerController::BeginPlay()
 {
     Super::BeginPlay();
 
+    // Enable both game and UI input so keyboard works with cursor visible.
+    // Without this, bShowMouseCursor + no pawn defaults to UI-only mode,
+    // blocking keyboard events from reaching IsInputKeyDown.
+    FInputModeGameAndUI InputMode;
+    InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+    InputMode.SetHideCursorDuringCapture(false);
+    SetInputMode(InputMode);
+
     FindCameraRig();
 
     if (CameraRig)
@@ -53,7 +61,6 @@ void AMXRTSPlayerController::PlayerTick(float DeltaTime)
     HandleZoom(DeltaTime);
     HandleRotation(DeltaTime);
     HandleKeyboardPan(DeltaTime);
-    HandleEdgePan(DeltaTime);
     HandleDragPan(DeltaTime);
 
     // ---- Selection ----
@@ -161,42 +168,6 @@ void AMXRTSPlayerController::HandleKeyboardPan(float DeltaTime)
         // Pan speed scales with zoom for consistent screen-space speed.
         float ZoomScale = CachedSpringArm ? (CachedSpringArm->TargetArmLength / 800.0f) : 1.0f;
         CameraRig->AddActorWorldOffset(PanDirection * PanSpeed * ZoomScale * DeltaTime);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Camera: Edge Pan
-// ---------------------------------------------------------------------------
-
-void AMXRTSPlayerController::HandleEdgePan(float DeltaTime)
-{
-    if (!CameraRig) return;
-
-    FVector2D MousePos;
-    GetMousePosition(MousePos.X, MousePos.Y);
-
-    int32 VPX, VPY;
-    GetViewportSize(VPX, VPY);
-    if (VPX == 0 || VPY == 0) return;
-
-    float NormX = MousePos.X / (float)VPX;
-    float NormY = MousePos.Y / (float)VPY;
-
-    FVector Forward, Right;
-    GetPlanarDirections(Forward, Right);
-
-    FVector EdgePanDir = FVector::ZeroVector;
-
-    if (NormX < EdgePanThreshold)       EdgePanDir -= Right;
-    if (NormX > 1.0f - EdgePanThreshold) EdgePanDir += Right;
-    if (NormY < EdgePanThreshold)       EdgePanDir += Forward;
-    if (NormY > 1.0f - EdgePanThreshold) EdgePanDir -= Forward;
-
-    if (!EdgePanDir.IsNearlyZero())
-    {
-        EdgePanDir.Normalize();
-        float ZoomScale = CachedSpringArm ? (CachedSpringArm->TargetArmLength / 800.0f) : 1.0f;
-        CameraRig->AddActorWorldOffset(EdgePanDir * EdgePanSpeed * ZoomScale * DeltaTime);
     }
 }
 

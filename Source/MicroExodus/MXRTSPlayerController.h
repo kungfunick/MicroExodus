@@ -65,12 +65,6 @@ public:
     float PanSpeed = 800.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
-    float EdgePanSpeed = 600.0f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
-    float EdgePanThreshold = 0.02f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
     float RotateSpeed = 0.3f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
@@ -165,7 +159,6 @@ private:
     void HandleZoom(float DeltaTime);
     void HandleRotation(float DeltaTime);
     void HandleKeyboardPan(float DeltaTime);
-    void HandleEdgePan(float DeltaTime);
     void HandleDragPan(float DeltaTime);
 
     // -------------------------------------------------------------------------

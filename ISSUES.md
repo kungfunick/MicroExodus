@@ -1,6 +1,6 @@
 # MicroExodus — Issue Tracker
 
-**Last Updated:** 2026-03-09
+**Last Updated:** 2026-03-10
 
 All known issues, bugs, and improvement requests. Issues are resolved in dev chats and marked with status. Resolved issues are kept for history.
 
@@ -92,17 +92,28 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 **Severity:** Crash | **Phase:** 2C | **Resolved:** 2026-03-09
 **Fix:** Changed to `IMXRobotProvider::Execute_GetRobotProfile()` pattern. Added `#include "MXInterfaces.h"`.
 
+### ~~ISS-R10~~ — Edge-of-screen pan still active (ISS-013)
+**Severity:** UX | **Phase:** 2C | **Resolved:** 2026-03-10
+**Description:** `HandleEdgePan()` was still called in PlayerTick and function body still present despite ISS-R03 noting it was removed. Edge pan was causing unwanted camera drift when mousing to screen edges.
+**Fix:** Removed `HandleEdgePan()` call from PlayerTick, deleted entire function body, removed `EdgePanSpeed` and `EdgePanThreshold` UPROPERTYs and declaration from header. Files: MXRTSPlayerController.h/cpp.
+
+### ~~ISS-R11~~ — WASD / arrow keys not working (ISS-014)
+**Severity:** UX | **Phase:** 2C | **Resolved:** 2026-03-10
+**Root cause:** With `bShowMouseCursor = true` and `DefaultPawnClass = nullptr`, UE5 defaults to UI-only input mode. Mouse events work through the separate click/hover pipeline (`bEnableClickEvents`), but keyboard events don't reach `IsInputKeyDown` without explicit game input mode.
+**Fix:** Added `SetInputMode(FInputModeGameAndUI())` in BeginPlay with `DoNotLock` mouse and `HideCursorDuringCapture(false)`. File: MXRTSPlayerController.cpp.
+
 ---
 
 ## Camera Controls Reference (Current)
 
 | Input | Action |
 |-------|--------|
-| Arrow keys / WASD | Pan camera |
+| Arrow keys / WASD | Pan camera (follows camera yaw) |
 | Middle-click drag | Tablecloth drag pan |
 | Right-click drag | Rotate camera yaw |
 | Scroll wheel | Zoom in/out |
-| Double-click ground | Center camera on click point |
+| Double-click ground | Center camera on click point (no zoom) |
+| Double-click robot | Center + zoom in to robot |
 | Left-click | Select robot |
 | Left-click drag | Box select |
 | Shift+click | Add/remove from selection |
