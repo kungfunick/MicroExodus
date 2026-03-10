@@ -109,13 +109,13 @@ void AMXSpawnTestGameMode::SpawnRobots()
         if (SpawnedFloor)
         {
             SpawnPos = SpawnedFloor->GetRandomFloorPosition(100.0f);
-            SpawnPos.Z += 20.0f; // Slightly above floor for spawn safety.
+            SpawnPos.Z += 5.0f; // Slightly above floor surface for spawn safety.
         }
         else
         {
             // Fallback: circle layout.
             float Angle = (2.0f * PI * i) / NumRobots;
-            SpawnPos = FVector(FMath::Cos(Angle) * 200.0f, FMath::Sin(Angle) * 200.0f, 20.0f);
+            SpawnPos = FVector(FMath::Cos(Angle) * 200.0f, FMath::Sin(Angle) * 200.0f, 5.0f);
         }
 
         FActorSpawnParameters SpawnParams;

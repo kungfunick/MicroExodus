@@ -13,6 +13,7 @@
 
 // Forward declarations
 class AMXCameraRig;
+class AMXRobotActor;
 class UMXSelectionManager;
 class USpringArmComponent;
 
@@ -64,6 +65,12 @@ public:
     float PanSpeed = 800.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
+    float EdgePanSpeed = 600.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
+    float EdgePanThreshold = 0.02f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
     float RotateSpeed = 0.3f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
@@ -88,6 +95,22 @@ public:
     /** Formation spread when moving multiple robots to a click. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Movement")
     float FormationSpacing = 40.0f;
+
+    // -------------------------------------------------------------------------
+    // Double-Click Config
+    // -------------------------------------------------------------------------
+
+    /** Max time between clicks to count as double-click (seconds). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|DoubleClick")
+    float DoubleClickTime = 0.3f;
+
+    /** Max pixel drift between clicks to count as double-click. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|DoubleClick")
+    float DoubleClickRadius = 20.0f;
+
+    /** Zoom level when double-clicking a robot (arm length in cm). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|DoubleClick")
+    float DoubleClickRobotZoom = 150.0f;
 
 protected:
 
@@ -131,6 +154,10 @@ private:
     bool bMiddleMouseDown = false;
     FVector2D MiddleMouseDownPos = FVector2D::ZeroVector;
 
+    /** Double-click tracking. */
+    float LastLeftClickTime = -1.0f;
+    FVector2D LastLeftClickPos = FVector2D::ZeroVector;
+
     // -------------------------------------------------------------------------
     // Camera Input Handlers
     // -------------------------------------------------------------------------
@@ -138,8 +165,8 @@ private:
     void HandleZoom(float DeltaTime);
     void HandleRotation(float DeltaTime);
     void HandleKeyboardPan(float DeltaTime);
+    void HandleEdgePan(float DeltaTime);
     void HandleDragPan(float DeltaTime);
-    void HandleDoubleClickCenter();
 
     // -------------------------------------------------------------------------
     // Selection Input Handlers
@@ -149,6 +176,7 @@ private:
     void HandleRightClickMove();
     void HandleControlGroups();
     void HandleSelectAll();
+    void HandleDoubleClick(const FVector2D& ClickPos);
 
     // -------------------------------------------------------------------------
     // Movement Commands
@@ -166,6 +194,12 @@ private:
      * @return             True if a ground hit was found.
      */
     bool GetGroundHitUnderCursor(FVector& OutLocation) const;
+
+    /**
+     * Raycast from cursor and return the robot actor under it (if any).
+     * @return  The AMXRobotActor under the cursor, or nullptr.
+     */
+    AMXRobotActor* GetRobotUnderCursor() const;
 
     // -------------------------------------------------------------------------
     // Helpers

@@ -14,10 +14,9 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 **Blocked by:** Need to create ABP_MXRobot from Third Person locomotion BlendSpace, wire speed variable. Also need to inspect SandboxCharacter_CMC.uasset for skeleton compatibility.
 **Fix plan:** Phase 3 — mannequin mesh, materials, idle/walk animation.
 
-### ISS-002 — Scroll wheel zoom uses IsInputKeyDown polling
+### ISS-002 — ~~Scroll wheel zoom uses IsInputKeyDown polling~~
 **Severity:** Minor UX | **Phase:** 2B | **Since:** 2026-03-08
-**Description:** `HandleZoom()` polls `IsInputKeyDown(EKeys::MouseScrollUp/Down)` which may miss fast scroll inputs. UE5's input axis events would be more reliable.
-**Fix plan:** Switch to `GetInputAxisKeyValue(EKeys::MouseWheelAxis)` or bind via Enhanced Input.
+**Status:** RESOLVED 2026-03-10 — Replaced with `WasInputKeyJustPressed(EKeys::MouseScrollUp/Down)`. See ISS-R06.
 
 ### ISS-003 — SandboxCharacter_CMC.uasset not inspected
 **Severity:** Planning | **Phase:** 2-Next | **Since:** 2026-03-08
@@ -44,14 +43,38 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 **Description:** MXNameTheme and MXNameEvolution files are compiled but not wired into GameInstance, RobotManager, or RunManager. Robots still use plain first names only. Three patches documented in ThemedNameEvolution_SetupGuide.md.
 **Fix plan:** Apply Patches 1-3 from the setup guide: profile fields, GameInstance wiring, RobotManager stamping.
 
-### ISS-008 — Double-click center camera may conflict with double-click select
+### ISS-008 — ~~Double-click center camera may conflict with double-click select~~
 **Severity:** UX | **Phase:** 2C | **Since:** 2026-03-09
-**Description:** `HandleDoubleClickCenter()` triggers on any double-left-click. If the user double-clicks a robot (intending "select all of type" or similar future feature), it also centers the camera. May need to check if a robot was hit first.
-**Fix plan:** In HandleDoubleClickCenter, raycast for robots first. If a robot is hit, skip the center and let the selection system handle it.
+**Status:** RESOLVED 2026-03-10 — Replaced with proper HandleDoubleClick: raycast for robot first (zoom in), ground hit (center only, no zoom). See ISS-R08.
 
 ---
 
 ## Resolved Issues
+
+### ~~ISS-R05~~ — Robots hover above floor plane (ISS-009)
+**Severity:** Visual | **Phase:** 2C | **Resolved:** 2026-03-09
+**Root cause:** Double-miniaturization. Constructor set mini capsule `InitCapsuleSize(8, 18)`, then BeginPlay called `SetActorScale3D(0.2)` on the entire actor, shrinking the capsule to an effective 3.6cm half-height. Spawn collision adjustment positioned the capsule for the pre-scale size, then the scale change left it floating. Additionally, the mesh relative Z was still at the ACharacter default (−88) instead of matching our mini capsule (−18).
+**Fix:** (1) Constructor: added `GetMesh()->SetRelativeLocation(FVector(0, 0, -18))` after `InitCapsuleSize`. (2) BeginPlay: replaced `SetActorScale3D(RobotScale)` with `GetMesh()->SetRelativeScale3D(RobotScale)` — scales only the mesh, not the actor/capsule. (3) Reduced spawn Z offset from 20 to 5. Files: MXRobotActor.cpp, MXSpawnTestGameMode.cpp.
+
+### ~~ISS-R06~~ — Scroll zoom not working (ISS-002)
+**Severity:** UX | **Phase:** 2B → Fixed 2C | **Resolved:** 2026-03-10
+**Root cause:** `IsInputKeyDown(EKeys::MouseScrollUp/Down)` unreliable — scroll fires as single-frame press/release events that `IsInputKeyDown` misses at high framerates.
+**Fix:** Replaced with `WasInputKeyJustPressed(EKeys::MouseScrollUp/Down)` which catches the frame transition. File: MXRTSPlayerController.cpp.
+
+### ~~ISS-R07~~ — WASD pan direction doesn't follow camera yaw + tablecloth drag broken (ISS-010)
+**Severity:** UX | **Phase:** 2C | **Resolved:** 2026-03-10
+**Root cause:** Two bugs. (1) `GetPlanarDirections()` used `GetControlRotation()` which never updates when we rotate the camera rig actor directly — pan always went in the initial world direction. (2) `HandleDragPan()` multiplied the per-frame mouse delta by `DeltaTime` a second time, effectively zeroing the movement (~0.016 at 60fps).
+**Fix:** (1) `GetPlanarDirections()` now reads `CameraRig->GetActorRotation().Yaw` so WASD/drag follow camera orientation. (2) Removed extra `* DeltaTime` from drag pan, added zoom-proportional scaling. File: MXRTSPlayerController.cpp.
+
+### ~~ISS-R08~~ — Double-click behavior implemented (ISS-008 + ISS-011)
+**Severity:** Feature | **Phase:** 2C | **Resolved:** 2026-03-10
+**Description:** Double-click on robot: centers camera and zooms in to `DoubleClickRobotZoom` (150cm arm length). Double-click on ground: centers camera on that point, no zoom change. Uses 0.3s/20px thresholds (configurable UPROPERTYs).
+**Files:** MXRTSPlayerController.h/cpp.
+
+### ~~ISS-R09~~ — Name text appeared in centre of mesh (ISS-012)
+**Severity:** Visual | **Phase:** 2C | **Resolved:** 2026-03-10
+**Root cause:** NameTextComponent relative Z=45 and WorldSize=8 were designed for actor-scale 0.2 (effective Z=9, size=1.6). After ISS-009 fix (mesh-only scale), actor is unscaled so Z=45 was above the robot and WorldSize=8 was giant. SelectionRing Z=-17 was also slightly off.
+**Fix:** NameText relative Z → 26 (8cm above head), WorldSize → 2.0. SelectionRing relative Z → -18 (exact feet). File: MXRobotActor.cpp.
 
 ### ~~ISS-R01~~ — Name text display always visible
 **Severity:** Visual | **Phase:** 2A → Fixed 2C | **Resolved:** 2026-03-09

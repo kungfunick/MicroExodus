@@ -22,8 +22,17 @@ AMXRobotActor::AMXRobotActor()
 
     // ---- Capsule sizing for miniaturised robot ----
     // Default mannequin is ~180cm. At 0.20 scale = ~36cm.
-    // Capsule half-height ~18cm, radius ~8cm at scale.
+    // Capsule half-height ~18cm, radius ~8cm.
+    // NOTE: We do NOT scale the actor — only the mesh is scaled in BeginPlay.
+    // This keeps the capsule, name text, and selection ring at designed sizes.
     GetCapsuleComponent()->InitCapsuleSize(8.0f, 18.0f);
+
+    // ACharacter's base constructor set the mesh at Z = -DefaultHalfHeight (~-88).
+    // We need to realign it to match our mini capsule's half-height.
+    if (GetMesh())
+    {
+        GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, -18.0f));
+    }
 
     // ---- Character Movement ----
     UCharacterMovementComponent* CMC = GetCharacterMovement();
@@ -43,10 +52,13 @@ AMXRobotActor::AMXRobotActor()
     if (NameTextComponent)
     {
         NameTextComponent->SetupAttachment(GetRootComponent());
-        NameTextComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 45.0f)); // Above head.
+        // Root is at capsule center (Z=18). Robot head at ~Z=36 (mesh 0.2 scale).
+        // Place name 8cm above head = world Z=44, relative Z = 44-18 = 26.
+        NameTextComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 26.0f));
         NameTextComponent->SetHorizontalAlignment(EHTA_Center);
         NameTextComponent->SetVerticalAlignment(EVRTA_TextBottom);
-        NameTextComponent->SetWorldSize(8.0f);
+        // WorldSize 2.0 looks right for an unscaled actor (was 8.0 when actor was 0.2 scale).
+        NameTextComponent->SetWorldSize(2.0f);
         NameTextComponent->SetTextRenderColor(FColor(200, 200, 200, 200));
         NameTextComponent->SetVisibility(false); // Hidden by default (Phase 2C fix).
     }
@@ -56,7 +68,8 @@ AMXRobotActor::AMXRobotActor()
     if (SelectionRingComponent)
     {
         SelectionRingComponent->SetupAttachment(GetRootComponent());
-        SelectionRingComponent->SetRelativeLocation(FVector(0.0f, 0.0f, -17.0f)); // At feet.
+        // Root at capsule center (Z=18). Feet at Z=0. Ring at feet = relative Z=-18.
+        SelectionRingComponent->SetRelativeLocation(FVector(0.0f, 0.0f, -18.0f));
         SelectionRingComponent->SetRelativeScale3D(FVector(0.25f, 0.25f, 0.01f));
         SelectionRingComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         SelectionRingComponent->SetVisibility(false); // Hidden until selected.
@@ -80,8 +93,13 @@ void AMXRobotActor::BeginPlay()
 {
     Super::BeginPlay();
 
-    // Apply robot scale. Done in BeginPlay to avoid Blueprint serialisation override.
-    SetActorScale3D(FVector(RobotScale));
+    // Apply robot scale to mesh only. Done in BeginPlay to avoid Blueprint serialisation override.
+    // IMPORTANT: Do NOT use SetActorScale3D — that would double-miniaturise the capsule
+    // (already sized at 8/18 in the constructor) and break the CMC's ground detection.
+    if (GetMesh())
+    {
+        GetMesh()->SetRelativeScale3D(FVector(RobotScale));
+    }
 
     // If a skeletal mesh asset is set, load and apply it.
     if (!SkeletalMeshAsset.IsNull())

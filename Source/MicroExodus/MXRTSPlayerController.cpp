@@ -53,8 +53,8 @@ void AMXRTSPlayerController::PlayerTick(float DeltaTime)
     HandleZoom(DeltaTime);
     HandleRotation(DeltaTime);
     HandleKeyboardPan(DeltaTime);
+    HandleEdgePan(DeltaTime);
     HandleDragPan(DeltaTime);
-    HandleDoubleClickCenter();
 
     // ---- Selection ----
     HandleLeftMouseInput(DeltaTime);
@@ -77,13 +77,14 @@ void AMXRTSPlayerController::HandleZoom(float DeltaTime)
 {
     if (!CachedSpringArm) return;
 
-    // Detect scroll wheel via axis value.
+    // Detect scroll wheel via just-pressed check.
+    // IsInputKeyDown misses scroll events — they fire as single-frame press/release.
     float ScrollDelta = 0.0f;
-    if (IsInputKeyDown(EKeys::MouseScrollUp))
+    if (WasInputKeyJustPressed(EKeys::MouseScrollUp))
     {
         ScrollDelta = -1.0f;
     }
-    else if (IsInputKeyDown(EKeys::MouseScrollDown))
+    else if (WasInputKeyJustPressed(EKeys::MouseScrollDown))
     {
         ScrollDelta = 1.0f;
     }
@@ -164,46 +165,39 @@ void AMXRTSPlayerController::HandleKeyboardPan(float DeltaTime)
 }
 
 // ---------------------------------------------------------------------------
-// Camera: Double-Click Center — snap camera to ground under cursor
+// Camera: Edge Pan
 // ---------------------------------------------------------------------------
 
-void AMXRTSPlayerController::HandleDoubleClickCenter()
+void AMXRTSPlayerController::HandleEdgePan(float DeltaTime)
 {
     if (!CameraRig) return;
 
-    // Detect double-click on left mouse (via timing).
-    static float LastClickTime = 0.0f;
-    static bool bWasLeftDown = false;
+    FVector2D MousePos;
+    GetMousePosition(MousePos.X, MousePos.Y);
 
-    bool bLeftDown = IsInputKeyDown(EKeys::LeftMouseButton);
+    int32 VPX, VPY;
+    GetViewportSize(VPX, VPY);
+    if (VPX == 0 || VPY == 0) return;
 
-    if (bLeftDown && !bWasLeftDown)
+    float NormX = MousePos.X / (float)VPX;
+    float NormY = MousePos.Y / (float)VPY;
+
+    FVector Forward, Right;
+    GetPlanarDirections(Forward, Right);
+
+    FVector EdgePanDir = FVector::ZeroVector;
+
+    if (NormX < EdgePanThreshold)       EdgePanDir -= Right;
+    if (NormX > 1.0f - EdgePanThreshold) EdgePanDir += Right;
+    if (NormY < EdgePanThreshold)       EdgePanDir += Forward;
+    if (NormY > 1.0f - EdgePanThreshold) EdgePanDir -= Forward;
+
+    if (!EdgePanDir.IsNearlyZero())
     {
-        float Now = GetWorld()->GetTimeSeconds();
-        float TimeSinceLast = Now - LastClickTime;
-
-        if (TimeSinceLast < 0.3f && TimeSinceLast > 0.01f)
-        {
-            // Double-click detected — center camera on ground hit.
-            FVector GroundHit;
-            if (GetGroundHitUnderCursor(GroundHit))
-            {
-                // Keep the camera's current Z, just move XY.
-                FVector NewPos = CameraRig->GetActorLocation();
-                NewPos.X = GroundHit.X;
-                NewPos.Y = GroundHit.Y;
-                CameraRig->SetActorLocation(NewPos);
-
-                UE_LOG(LogTemp, Log,
-                    TEXT("MXRTSPlayerController: Double-click centered camera at (%.0f, %.0f)."),
-                    GroundHit.X, GroundHit.Y);
-            }
-        }
-
-        LastClickTime = Now;
+        EdgePanDir.Normalize();
+        float ZoomScale = CachedSpringArm ? (CachedSpringArm->TargetArmLength / 800.0f) : 1.0f;
+        CameraRig->AddActorWorldOffset(EdgePanDir * EdgePanSpeed * ZoomScale * DeltaTime);
     }
-
-    bWasLeftDown = bLeftDown;
 }
 
 // ---------------------------------------------------------------------------
@@ -235,9 +229,11 @@ void AMXRTSPlayerController::HandleDragPan(float DeltaTime)
         FVector Forward, Right;
         GetPlanarDirections(Forward, Right);
 
-        // Inverted for grab-and-drag feel.
-        FVector PanOffset = (-Right * Delta.X + Forward * Delta.Y) * DragPanSpeed;
-        CameraRig->AddActorWorldOffset(PanOffset * DeltaTime);
+        // Inverted for grab-and-drag (tablecloth) feel.
+        // Delta is already per-frame pixel movement — do NOT multiply by DeltaTime.
+        float ZoomScale = CachedSpringArm ? (CachedSpringArm->TargetArmLength / 800.0f) : 1.0f;
+        FVector PanOffset = (-Right * Delta.X + Forward * Delta.Y) * DragPanSpeed * ZoomScale;
+        CameraRig->AddActorWorldOffset(PanOffset);
 
         MiddleMouseDownPos = CurrentMouse;
     }
@@ -292,6 +288,9 @@ void AMXRTSPlayerController::HandleLeftMouseInput(float DeltaTime)
     {
         bLeftMouseDown = false;
 
+        FVector2D ReleasePos;
+        GetMousePosition(ReleasePos.X, ReleasePos.Y);
+
         if (bIsDraggingBoxSelect)
         {
             // Finalize box select.
@@ -299,8 +298,25 @@ void AMXRTSPlayerController::HandleLeftMouseInput(float DeltaTime)
         }
         else
         {
-            // Single click select.
-            SelectionManager->TrySelectAtCursor(bShift);
+            // Check for double-click before single-click select.
+            float Now = GetWorld()->GetTimeSeconds();
+            float TimeSinceLastClick = Now - LastLeftClickTime;
+            float DistFromLastClick = FVector2D::Distance(ReleasePos, LastLeftClickPos);
+
+            if (TimeSinceLastClick < DoubleClickTime && DistFromLastClick < DoubleClickRadius)
+            {
+                // Double-click detected.
+                HandleDoubleClick(ReleasePos);
+                LastLeftClickTime = -1.0f; // Reset so triple-click doesn't re-trigger.
+            }
+            else
+            {
+                // Single click select.
+                SelectionManager->TrySelectAtCursor(bShift);
+            }
+
+            LastLeftClickTime = Now;
+            LastLeftClickPos = ReleasePos;
         }
 
         bIsDraggingBoxSelect = false;
@@ -462,12 +478,76 @@ bool AMXRTSPlayerController::GetGroundHitUnderCursor(FVector& OutLocation) const
 
 void AMXRTSPlayerController::GetPlanarDirections(FVector& OutForward, FVector& OutRight) const
 {
-    FRotator ControlRot = GetControlRotation();
-    ControlRot.Pitch = 0.0f;
-    ControlRot.Roll = 0.0f;
+    // Use the camera rig's yaw so WASD/drag follow camera orientation.
+    // GetControlRotation() never updates when we rotate the rig actor directly.
+    FRotator CamYaw = FRotator::ZeroRotator;
+    if (CameraRig)
+    {
+        CamYaw.Yaw = CameraRig->GetActorRotation().Yaw;
+    }
 
-    OutForward = FRotationMatrix(ControlRot).GetUnitAxis(EAxis::X);
-    OutRight = FRotationMatrix(ControlRot).GetUnitAxis(EAxis::Y);
+    OutForward = FRotationMatrix(CamYaw).GetUnitAxis(EAxis::X);
+    OutRight = FRotationMatrix(CamYaw).GetUnitAxis(EAxis::Y);
+}
+
+// ---------------------------------------------------------------------------
+// Double-Click: Zoom to robot or center on ground
+// ---------------------------------------------------------------------------
+
+void AMXRTSPlayerController::HandleDoubleClick(const FVector2D& ClickPos)
+{
+    // Check if a robot is under the cursor.
+    AMXRobotActor* Robot = GetRobotUnderCursor();
+
+    if (Robot)
+    {
+        // Double-click on robot: center camera on robot and zoom in.
+        if (CameraRig)
+        {
+            FVector RobotPos = Robot->GetActorLocation();
+            RobotPos.Z = CameraRig->GetActorLocation().Z;
+            CameraRig->SetActorLocation(RobotPos);
+        }
+        if (CachedSpringArm)
+        {
+            TargetZoom = DoubleClickRobotZoom;
+        }
+        // Also select the robot.
+        if (SelectionManager)
+        {
+            SelectionManager->TrySelectAtCursor(false);
+        }
+
+        UE_LOG(LogTemp, Log, TEXT("MXRTSPlayerController: Double-click zoom to robot '%s'."),
+               *Robot->RobotName);
+    }
+    else
+    {
+        // Double-click on ground: center camera on that point (no zoom change).
+        FVector GroundHit;
+        if (GetGroundHitUnderCursor(GroundHit) && CameraRig)
+        {
+            FVector NewPos = GroundHit;
+            NewPos.Z = CameraRig->GetActorLocation().Z;
+            CameraRig->SetActorLocation(NewPos);
+
+            UE_LOG(LogTemp, Log,
+                TEXT("MXRTSPlayerController: Double-click center at (%.0f, %.0f)."),
+                GroundHit.X, GroundHit.Y);
+        }
+    }
+}
+
+AMXRobotActor* AMXRTSPlayerController::GetRobotUnderCursor() const
+{
+    FHitResult Hit;
+    GetHitResultUnderCursor(ECC_Pawn, false, Hit);
+
+    if (Hit.bBlockingHit && Hit.GetActor())
+    {
+        return Cast<AMXRobotActor>(Hit.GetActor());
+    }
+    return nullptr;
 }
 
 void AMXRTSPlayerController::FindCameraRig()
