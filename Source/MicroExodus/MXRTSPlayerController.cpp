@@ -46,6 +46,8 @@ void AMXRTSPlayerController::BeginPlay()
     {
         // Set view target to the camera rig.
         SetViewTargetWithBlend(CameraRig, 0.5f);
+        // Save initial position for reset view.
+        InitialCameraPos = CameraRig->GetActorLocation();
     }
 }
 
@@ -62,6 +64,7 @@ void AMXRTSPlayerController::PlayerTick(float DeltaTime)
     HandleRotation(DeltaTime);
     HandleKeyboardPan(DeltaTime);
     HandleDragPan(DeltaTime);
+    HandleResetView();
 
     // ---- Selection ----
     HandleLeftMouseInput(DeltaTime);
@@ -84,23 +87,16 @@ void AMXRTSPlayerController::HandleZoom(float DeltaTime)
 {
     if (!CachedSpringArm) return;
 
-    // Detect scroll wheel via just-pressed check.
-    // IsInputKeyDown misses scroll events — they fire as single-frame press/release.
-    float ScrollDelta = 0.0f;
-    if (WasInputKeyJustPressed(EKeys::MouseScrollUp))
-    {
-        ScrollDelta = -1.0f;
-    }
-    else if (WasInputKeyJustPressed(EKeys::MouseScrollDown))
-    {
-        ScrollDelta = 1.0f;
-    }
+    // Use the analog axis value — the ONLY reliable scroll wheel detection in UE5.
+    // IsInputKeyDown and WasInputKeyJustPressed both miss scroll events because
+    // the scroll wheel fires as a sub-frame impulse, not a sustained key state.
+    float ScrollDelta = GetInputAnalogKeyState(EKeys::MouseWheelAxis);
 
     if (!FMath::IsNearlyZero(ScrollDelta))
     {
-        // Speed scales with current zoom level for natural feel.
+        // Negate so scroll-up = zoom in (shorter arm). Speed scales with zoom level.
         float ZoomFactor = ZoomSpeed * (CachedSpringArm->TargetArmLength / 500.0f);
-        TargetZoom = FMath::Clamp(TargetZoom + ScrollDelta * ZoomFactor, MinZoom, MaxZoom);
+        TargetZoom = FMath::Clamp(TargetZoom - ScrollDelta * ZoomFactor, MinZoom, MaxZoom);
     }
 
     // Smooth zoom interpolation.
@@ -207,6 +203,31 @@ void AMXRTSPlayerController::HandleDragPan(float DeltaTime)
         CameraRig->AddActorWorldOffset(PanOffset);
 
         MiddleMouseDownPos = CurrentMouse;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Camera: Reset View (Home key)
+// ---------------------------------------------------------------------------
+
+void AMXRTSPlayerController::HandleResetView()
+{
+    if (!CameraRig) return;
+
+    if (WasInputKeyJustPressed(EKeys::Home))
+    {
+        // Reset position to initial (floor center).
+        CameraRig->SetActorLocation(InitialCameraPos);
+
+        // Reset yaw to 0.
+        FRotator RigRot = CameraRig->GetActorRotation();
+        RigRot.Yaw = 0.0f;
+        CameraRig->SetActorRotation(RigRot);
+
+        // Reset zoom to default.
+        TargetZoom = DefaultZoom;
+
+        UE_LOG(LogTemp, Log, TEXT("MXRTSPlayerController: View reset to default."));
     }
 }
 

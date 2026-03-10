@@ -9,10 +9,12 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "MXTypes.h"
 #include "MXRobotActor.generated.h"
 
 class UTextRenderComponent;
 class UStaticMeshComponent;
+struct FMXRobotProfile;
 
 // ---------------------------------------------------------------------------
 // Delegates
@@ -53,13 +55,60 @@ public:
     UFUNCTION(BlueprintCallable, Category = "MX|Robot")
     void BindToProfile(const FGuid& InRobotId, const FString& InRobotName);
 
+    /**
+     * Bind this actor to a full robot profile. Populates all editor-visible identity fields.
+     * @param Profile  The complete robot profile from the Identity module.
+     */
+    UFUNCTION(BlueprintCallable, Category = "MX|Robot")
+    void BindToFullProfile(const FMXRobotProfile& Profile);
+
     /** The robot's unique identity. */
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot|Identity")
     FGuid RobotId;
 
     /** The robot's display name. */
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot|Identity")
     FString RobotName;
+
+    // -------------------------------------------------------------------------
+    // Generated Profile (visible in editor Details panel)
+    // -------------------------------------------------------------------------
+
+    /** Personality archetype description (e.g., "cautious optimist"). */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot|Profile")
+    FString PersonalityDescription;
+
+    /** Defining quirk that colors this robot's narrative voice. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot|Profile")
+    FString Quirk;
+
+    /** Things this robot likes. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot|Profile")
+    TArray<FString> Likes;
+
+    /** Things this robot dislikes. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot|Profile")
+    TArray<FString> Dislikes;
+
+    /** Current role assignment. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot|Profile")
+    ERobotRole RobotRole = ERobotRole::None;
+
+    /** Current level. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot|Profile")
+    int32 Level = 1;
+
+    /** Currently displayed title. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot|Profile")
+    FString DisplayedTitle;
+
+    /** Chassis color index. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot|Profile")
+    int32 ChassisColor = 0;
+
+    /** Eye color index. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot|Profile")
+    int32 EyeColor = 0;
 
     // -------------------------------------------------------------------------
     // Selection & Hover (Phase 2C)

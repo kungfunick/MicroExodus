@@ -4,6 +4,7 @@
 
 #include "MXSpawnTestGameMode.h"
 #include "MXRobotActor.h"
+#include "MXRobotProfile.h"
 #include "MXCameraRig.h"
 #include "MXTestFloorGenerator.h"
 #include "MXRTSPlayerController.h"
@@ -104,11 +105,19 @@ void AMXSpawnTestGameMode::SpawnRobots()
 
     for (int32 i = 0; i < NumRobots; ++i)
     {
-        // Get a position on the floor.
+        // Get a position near the center of the floor.
         FVector SpawnPos = FVector::ZeroVector;
         if (SpawnedFloor)
         {
-            SpawnPos = SpawnedFloor->GetRandomFloorPosition(100.0f);
+            // Spawn in a circle around floor center instead of full floor area.
+            FVector Center = SpawnedFloor->GetFloorCenter();
+            float Angle = (2.0f * PI * i) / NumRobots;
+            float Radius = FMath::RandRange(SpawnRadius * 0.2f, SpawnRadius);
+            SpawnPos = FVector(
+                Center.X + FMath::Cos(Angle) * Radius,
+                Center.Y + FMath::Sin(Angle) * Radius,
+                0.0f  // FloorZ
+            );
             SpawnPos.Z += 5.0f; // Slightly above floor surface for spawn safety.
         }
         else
@@ -137,6 +146,9 @@ void AMXSpawnTestGameMode::SpawnRobots()
             {
                 FMXRobotProfile Profile = IMXRobotProvider::Execute_GetRobotProfile(RobotManager, RobotId);
                 RobotNameStr = Profile.name;
+
+                // Full profile binding — populates all editor-visible fields.
+                Robot->BindToFullProfile(Profile);
             }
         }
 
@@ -145,9 +157,9 @@ void AMXSpawnTestGameMode::SpawnRobots()
         {
             RobotId = FGuid::NewGuid();
             RobotNameStr = FString::Printf(TEXT("Robot-%02d"), i + 1);
+            Robot->BindToProfile(RobotId, RobotNameStr);
         }
 
-        Robot->BindToProfile(RobotId, RobotNameStr);
         SpawnedRobots.Add(Robot);
     }
 

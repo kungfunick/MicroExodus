@@ -70,6 +70,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
     float DragPanSpeed = 2.0f;
 
+    /** Default zoom level (arm length in cm) used by reset view (Home key). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
+    float DefaultZoom = 800.0f;
+
     // -------------------------------------------------------------------------
     // Selection Config
     // -------------------------------------------------------------------------
@@ -129,6 +133,9 @@ private:
 
     float TargetZoom = 800.0f;
 
+    /** Saved initial camera position for reset view. */
+    FVector InitialCameraPos = FVector::ZeroVector;
+
     // -------------------------------------------------------------------------
     // Input State
     // -------------------------------------------------------------------------
@@ -160,6 +167,7 @@ private:
     void HandleRotation(float DeltaTime);
     void HandleKeyboardPan(float DeltaTime);
     void HandleDragPan(float DeltaTime);
+    void HandleResetView();
 
     // -------------------------------------------------------------------------
     // Selection Input Handlers

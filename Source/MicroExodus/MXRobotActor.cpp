@@ -3,6 +3,7 @@
 // Updated: 2026-03-09
 
 #include "MXRobotActor.h"
+#include "MXRobotProfile.h"
 #include "Components/TextRenderComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -167,6 +168,34 @@ void AMXRobotActor::BindToProfile(const FGuid& InRobotId, const FString& InRobot
 
     UE_LOG(LogTemp, Log, TEXT("MXRobotActor: Bound to '%s' (ID: %s)"),
            *RobotName, *RobotId.ToString());
+}
+
+void AMXRobotActor::BindToFullProfile(const FMXRobotProfile& Profile)
+{
+    // Core identity.
+    RobotId = Profile.robot_id;
+    RobotName = Profile.name;
+
+    // Generated profile details — visible in editor Details panel.
+    PersonalityDescription = Profile.description;
+    Quirk = Profile.quirk;
+    Likes = Profile.likes;
+    Dislikes = Profile.dislikes;
+    RobotRole = Profile.role;
+    Level = Profile.level;
+    DisplayedTitle = Profile.displayed_title;
+    ChassisColor = Profile.chassis_color;
+    EyeColor = Profile.eye_color;
+
+    // Update visual display.
+    if (NameTextComponent)
+    {
+        NameTextComponent->SetText(FText::FromString(RobotName));
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("MXRobotActor: Full bind to '%s' — %s, Lv%d, Role=%d (ID: %s)"),
+           *RobotName, *PersonalityDescription, Level,
+           static_cast<int32>(RobotRole), *RobotId.ToString());
 }
 
 // ---------------------------------------------------------------------------

@@ -71,6 +71,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest|Floor")
     float FloorTileSize = 200.0f;
 
+    /** Maximum radius from floor center for robot spawning (cm). Keeps robots on the floor. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|SpawnTest|Spawning")
+    float SpawnRadius = 300.0f;
+
 private:
 
     // -------------------------------------------------------------------------

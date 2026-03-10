@@ -1,6 +1,6 @@
 # MicroExodus — Claude Project Orientation
 
-**Last Updated:** 2026-03-09
+**Last Updated:** 2026-03-10
 **Repo:** github.com/kungfunick/MicroExodus
 **Engine:** Unreal Engine 5.7 (C++, DX12/SM6, Lumen, Substrate)
 
@@ -25,11 +25,11 @@ All cross-module communication uses: events (MXEvents.h delegates), interfaces (
 
 **Phase 2C-Move (In Progress):** Selection + Click-to-Move + Procedural Floor:
 - UMXSelectionManager: click-select, box-select, Shift+multi, Ctrl+1-9 groups, Ctrl+A select all
-- AMXRobotActor updated: selection/hover state, MoveToLocation with CharacterMovementComponent, conditional name display (hover/select only)
+- AMXRobotActor updated: selection/hover state, MoveToLocation with CMC, conditional name display, full profile binding with VisibleAnywhere identity/personality/role fields
 - AMXTestFloorGenerator: procedural grid floor with collision (replaces manual Plane mesh)
-- AMXRTSPlayerController updated: left-click select, box-drag, right-click move command, control groups
-- AMXSpawnTestGameMode updated: spawns floor → robots → camera in correct order
-- GravityScale=0 hack removed (floor now has proper collision)
+- AMXRTSPlayerController: WASD/arrow pan (follows camera yaw), middle-click tablecloth drag, right-click yaw rotate, scroll zoom (analog axis), double-click (robot=zoom, ground=center), Home=reset view
+- AMXSpawnTestGameMode: spawns floor → robots → camera, configurable SpawnRadius for tight central spawning
+- All config exposed as EditAnywhere UPROPERTYs (Editor SDK philosophy)
 
 **Themed Name Evolution (New):** Per-robot naming themes stamped at birth from run selection:
 - 6 themes: Robot, Wizard, Pirate, Samurai, SciFi, Mythic (~420 names)
@@ -37,11 +37,11 @@ All cross-module communication uses: events (MXEvents.h delegates), interfaces (
 - Requires 3 patches: surname + name_theme on FMXRobotProfile, GameInstance wiring, RobotManager stamping
 - See ThemedNameEvolution_SetupGuide.md for details
 
-**Known Issues:** See `ISSUES.md` for full tracker (8 open, 4 resolved). Key open items:
+**Known Issues:** See `ISSUES.md` for full tracker. Key open items:
 1. Robots in T-pose (no AnimBP assigned)
-2. ~~Edge-of-screen panning causes drift~~ → Fixed: removed entirely
-3. Box select rectangle not drawn on screen
-4. Themed naming system compiled but not wired
+2. Box select rectangle not drawn on screen
+3. Themed naming system compiled but not wired
+4. Floor tile material "Color" parameter may not work on BasicShapeMaterial
 
 ## File Structure
 
@@ -76,6 +76,18 @@ Core, CoreUObject, Engine, InputCore, Json, JsonUtilities, UMG, Slate, SlateCore
 6. RunManager.Initialise(EventBus, RobotProvider, HatProvider, TierTable, XPTable)
 7. SpecTree.Initialize(SpecTreeTable, RobotProvider, EventBus)
 8. RunReportEngine.Initialize(EventBus)
+
+## Editor SDK Philosophy
+
+The test levels (L_SpawnTest and future test maps) are not throwaway scaffolding — they are the **SDK for the engine**. Every gameplay parameter, spawn setting, camera tuning value, and robot configuration must be editable in the Unreal Editor Details panel without recompilation. This applies to all current and future C++ classes:
+
+- **All tunables are `EditAnywhere, BlueprintReadWrite` UPROPERTYs** with descriptive `Category` tags following the `MX|Module|Subsystem` naming convention.
+- **Generated data is `VisibleAnywhere, BlueprintReadOnly`** so developers can inspect runtime state (robot profiles, personalities, roles) directly in the editor Outliner.
+- **Class references use `TSubclassOf<>` or `TSoftObjectPtr<>`** so Blueprints can override C++ defaults without code changes.
+- **Config values should have sensible defaults** that produce a working scene without any manual setup.
+- **Categories are hierarchical:** `MX|Robot|Config`, `MX|Robot|Profile`, `MX|RTS|Camera`, `MX|SpawnTest|Floor`, etc. This groups related properties in the Details panel.
+
+When adding any new system, ask: "Can a designer tweak every parameter from the editor?" If not, wrap it in a UPROPERTY.
 
 ## Critical Conventions
 

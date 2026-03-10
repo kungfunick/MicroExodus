@@ -102,6 +102,24 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 **Root cause:** With `bShowMouseCursor = true` and `DefaultPawnClass = nullptr`, UE5 defaults to UI-only input mode. Mouse events work through the separate click/hover pipeline (`bEnableClickEvents`), but keyboard events don't reach `IsInputKeyDown` without explicit game input mode.
 **Fix:** Added `SetInputMode(FInputModeGameAndUI())` in BeginPlay with `DoNotLock` mouse and `HideCursorDuringCapture(false)`. File: MXRTSPlayerController.cpp.
 
+### ~~ISS-R12~~ — Scroll wheel zoom not working (ISS-015)
+**Severity:** UX | **Phase:** 2B | **Resolved:** 2026-03-10
+**Root cause:** Both `IsInputKeyDown` and `WasInputKeyJustPressed` are unreliable for scroll wheel in UE5. The scroll wheel fires as a sub-frame analog impulse, not a sustained digital key state, so digital key detection misses it.
+**Fix:** Replaced with `GetInputAnalogKeyState(EKeys::MouseWheelAxis)` which reads the raw analog scroll value each tick. This is the standard UE5 approach. File: MXRTSPlayerController.cpp.
+
+### ~~ISS-R13~~ — Robots spawn across entire floor, fall off edges (ISS-016)
+**Severity:** Gameplay | **Phase:** 2C | **Resolved:** 2026-03-10
+**Root cause:** `GetRandomFloorPosition(100)` returns positions across the entire 2020cm floor. 8 tiny 36cm robots scattered across 4 million cm² is far too sparse, and edge positions risk falling off.
+**Fix:** Added `SpawnRadius` UPROPERTY (default 300cm) to AMXSpawnTestGameMode. Robots now spawn in a circle formation around floor center instead of random full-floor positions. File: MXSpawnTestGameMode.h/cpp.
+
+### ~~ISS-R14~~ — No reset view key (ISS-017)
+**Severity:** Feature | **Phase:** 2C | **Resolved:** 2026-03-10
+**Fix:** Home key resets camera to initial position (floor center), default zoom (800cm), and 0° yaw. Added `DefaultZoom` UPROPERTY (800) and `InitialCameraPos` tracking. File: MXRTSPlayerController.h/cpp.
+
+### ~~ISS-R15~~ — Robot actors lack editor-visible profile data (ISS-018)
+**Severity:** Feature | **Phase:** 2C | **Resolved:** 2026-03-10
+**Fix:** Added `BindToFullProfile(FMXRobotProfile)` to AMXRobotActor. Populates VisibleAnywhere UPROPERTYs: PersonalityDescription, Quirk, Likes, Dislikes, Role, Level, DisplayedTitle, ChassisColor, EyeColor. SpawnTestGameMode calls full binding when Identity module is available. Click a robot in the editor Outliner → Details panel shows all generated data. Files: MXRobotActor.h/cpp, MXSpawnTestGameMode.cpp.
+
 ---
 
 ## Camera Controls Reference (Current)
@@ -111,7 +129,8 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 | Arrow keys / WASD | Pan camera (follows camera yaw) |
 | Middle-click drag | Tablecloth drag pan |
 | Right-click drag | Rotate camera yaw |
-| Scroll wheel | Zoom in/out |
+| Scroll wheel | Zoom in/out (analog axis) |
+| Home | Reset view (center, default zoom, 0° yaw) |
 | Double-click ground | Center camera on click point (no zoom) |
 | Double-click robot | Center + zoom in to robot |
 | Left-click | Select robot |

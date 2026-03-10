@@ -1,6 +1,8 @@
 # MicroExodus — Module Registry (Agents.md)
 
-**Last Updated:** 2026-03-09
+**Last Updated:** 2026-03-10
+
+> **Editor SDK Rule:** All gameplay parameters must be `EditAnywhere, BlueprintReadWrite` UPROPERTYs with `MX|Module|Subsystem` categories. Generated runtime data must be `VisibleAnywhere, BlueprintReadOnly`. Test levels are the SDK — every value must be tweakable from the editor Details panel without recompilation.
 
 ---
 
@@ -383,16 +385,16 @@ Bus->OnRobotDied.AddDynamic(this, &UMyClass::HandleRobotDied);
 **Files:** MXRobotActor.h/cpp, MXCameraRig.h/cpp, MXSpawnTestGameMode.h/cpp
 
 ### AMXRobotActor (ACharacter subclass)
-- `BindToProfile(FGuid, FString)` — sets RobotId, RobotName, updates text
+- `BindToProfile(FGuid, FString)` — simple binding: sets RobotId, RobotName, updates text
+- `BindToFullProfile(FMXRobotProfile)` — rich binding: populates all editor-visible profile fields
 - `SetSelected(bool)`, `SetHovered(bool)` — selection/hover state (Phase 2C)
 - `MoveToLocation(FVector)`, `StopMoving()` — click-to-move with CMC (Phase 2C)
-- `RobotScale` UPROPERTY — default 0.20
-- `SkeletalMeshAsset` — optional TSoftObjectPtr for C++ mesh assignment
-- `NameTextComponent` (UTextRenderComponent) — hidden by default, shown on hover/select (Phase 2C fix)
-- `SelectionRingComponent` (UStaticMeshComponent) — cylinder at feet, visible when selected (Phase 2C)
-- `MoveSpeed` (150), `StopDistance` (20), `RotationInterpSpeed` (8)
-- Mesh alignment done in BeginPlay (not constructor — BP serialisation override)
-- GravityScale = 1.0 (Phase 2C fix: floor now has collision)
+- **Config UPROPERTYs (EditAnywhere):** RobotScale(0.20), MoveSpeed(150), StopDistance(20), RotationInterpSpeed(8), SelectionColor, SelectedNameColor, HoveredNameColor, SkeletalMeshAsset
+- **Profile UPROPERTYs (VisibleAnywhere):** RobotId, RobotName, PersonalityDescription, Quirk, Likes, Dislikes, RobotRole, Level, DisplayedTitle, ChassisColor, EyeColor
+- `NameTextComponent` (UTextRenderComponent) — hidden by default, shown on hover/select
+- `SelectionRingComponent` (UStaticMeshComponent) — cylinder at feet, visible when selected
+- Capsule sized at (8, 18) in constructor. Mesh-only scale in BeginPlay (no actor scale).
+- GravityScale = 1.0 (floor has collision)
 
 ### AMXCameraRig (AActor)
 - Constructor creates and wires: SpringArm → Camera, PostProcess, SwarmCamera, TiltShiftEffect, TimeDilation
@@ -403,9 +405,9 @@ Bus->OnRobotDied.AddDynamic(this, &UMyClass::HandleRobotDied);
 ### AMXSpawnTestGameMode (AGameModeBase)
 - Gets UMXGameInstance → UMXRobotManager
 - **Spawn order:** Floor → Robots → Camera (Phase 2C)
-- Robots spawn at random positions on procedural floor surface (Phase 2C)
-- Configurable: NumRobots (8), FloorGridX (10), FloorGridY (10), FloorTileSize (200)
-- RobotActorClass, CameraRigClass, FloorGeneratorClass all configurable
+- Robots spawn in a circle within SpawnRadius of floor center (not full floor area)
+- Uses `BindToFullProfile()` when Identity module is available for rich editor data
+- **Config UPROPERTYs (EditAnywhere):** NumRobots(8), FloorGridX(10), FloorGridY(10), FloorTileSize(200), SpawnRadius(300), RobotActorClass, CameraRigClass, FloorGeneratorClass
 
 ---
 
@@ -416,16 +418,19 @@ Bus->OnRobotDied.AddDynamic(this, &UMyClass::HandleRobotDied);
 
 **AMXRTSPlayerController (APlayerController subclass)**
 - `bShowMouseCursor = true`, `bEnableClickEvents = true`, `bEnableMouseOverEvents = true`
+- `SetInputMode(FInputModeGameAndUI)` in BeginPlay — enables keyboard input with visible cursor
 - Finds AMXCameraRig via TActorIterator in BeginPlay, calls SetViewTargetWithBlend
-- **Camera:** HandleZoom, HandleRotation, HandleKeyboardPan, HandleEdgePan, HandleDragPan
-- **Selection (Phase 2C):** HandleLeftMouseInput (click + box drag), HandleRightClickMove, HandleControlGroups, HandleSelectAll
+- **Camera:** HandleZoom (analog axis), HandleRotation (right-drag), HandleKeyboardPan (WASD/arrows, follows camera yaw), HandleDragPan (middle-click tablecloth), HandleResetView (Home key)
+- **Selection (Phase 2C):** HandleLeftMouseInput (click + box drag + double-click), HandleRightClickMove, HandleControlGroups, HandleSelectAll
+- **Double-click:** Robot = center + zoom in; Ground = center only (no zoom)
 - `UMXSelectionManager` component — created as default subobject (Phase 2C)
 - `IssueMoveCommand(FVector)` — sends MoveToLocation to all selected robots with circle formation
-- `GetGroundHitUnderCursor()` — raycasts to ECC_WorldStatic for move targets
+- `GetGroundHitUnderCursor()` — raycasts ECC_WorldStatic for move targets
+- `GetRobotUnderCursor()` — raycasts ECC_Pawn for robot detection
 - All input via raw polling in PlayerTick (no Enhanced Input dependency)
 - Right-click: short click (<0.25s, <10px drag) = move command; longer = camera rotation
 
-**Config UPROPERTYs:** ZoomSpeed(50), MinZoom(100), MaxZoom(3000), ZoomInterpSpeed(6), PanSpeed(800), EdgePanSpeed(600), EdgePanThreshold(0.02), RotateSpeed(0.3), DragPanSpeed(2), FormationSpacing(40)
+**Config UPROPERTYs (EditAnywhere):** ZoomSpeed(50), MinZoom(100), MaxZoom(3000), ZoomInterpSpeed(6), DefaultZoom(800), PanSpeed(800), RotateSpeed(0.3), DragPanSpeed(2), FormationSpacing(40), DoubleClickTime(0.3), DoubleClickRadius(20), DoubleClickRobotZoom(150), BoxSelectColor, BoxSelectBorderColor
 
 **Depends On:** AMXCameraRig (Phase 2A)
 
