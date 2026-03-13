@@ -11,8 +11,8 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 ### ISS-001 — Robots in T-pose (no AnimBP)
 **Severity:** Visual | **Phase:** 2A | **Since:** 2026-03-08
 **Description:** Robots spawn with default T-pose because no Animation Blueprint is assigned to the skeletal mesh. Movement works (CharacterMovementComponent) but robots slide in T-pose.
-**Blocked by:** Need to create ABP_MXRobot from Third Person locomotion BlendSpace, wire speed variable. Also need to inspect SandboxCharacter_CMC.uasset for skeleton compatibility.
-**Fix plan:** Phase 3 — mannequin mesh, materials, idle/walk animation.
+**Blocked by:** Need GASP locomotion integration, UMXAnimBridge component, ABP_MXRobot AnimBP.
+**Fix plan:** Phase GASP-B — GASP locomotion state machine wired via UMXAnimBridge. Prompt ready: `MicroExodus_GASP_Integration_Prompt.md`.
 
 ### ISS-002 — ~~Scroll wheel zoom uses IsInputKeyDown polling~~
 **Severity:** Minor UX | **Phase:** 2B | **Since:** 2026-03-08
@@ -21,7 +21,7 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 ### ISS-003 — SandboxCharacter_CMC.uasset not inspected
 **Severity:** Planning | **Phase:** 2-Next | **Since:** 2026-03-08
 **Description:** The migrated Blueprint from Game Animation Sample hasn't been opened to verify skeleton compatibility, animation retarget setup, or CharacterMovementComponent configuration.
-**Fix plan:** Open in editor, document skeleton type, socket setup, AnimBP references.
+**Fix plan:** Phase GASP-A — first action in the GASP integration chat. See `MicroExodus_GASP_Integration_Prompt.md`.
 
 ### ISS-004 — Box select rectangle not drawn on screen
 **Severity:** Visual/UX | **Phase:** 2C | **Since:** 2026-03-09

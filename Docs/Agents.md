@@ -466,6 +466,16 @@ Bus->OnRobotDied.AddDynamic(this, &UMyClass::HandleRobotDied);
 
 ## Planned Modules (Not Started)
 
+### Phase GASP: Animation & Locomotion Integration (Prompt Ready)
+**Purpose:** Integrate GASP locomotion for fluid robot movement. Resolves ISS-001 (T-pose) and ISS-003 (SandboxCharacter_CMC inspection).
+**Planned Classes:**
+- `UMXAnimBridge` (ActorComponent on AMXRobotActor) — reads CMC velocity/state, exposes UPROPERTY variables to AnimBP. Triggers traversal actions and montages from C++. Zero GASP headers in C++.
+- `ABP_MXRobot` (Animation Blueprint) — GASP locomotion state machine (idle/walk/run/start/stop/pivot), traversal actions (vault/climb/mantle), action montage slots (rescue/flinch/death/sacrifice), idle personality variants.
+**Architecture:** C++ engine computes positions → CMC moves actor → AnimBridge reads CMC state → AnimBP plays animations. Animation layer fully swappable.
+**Phased:** GASP-A (inspect SandboxCharacter_CMC), GASP-B (locomotion), GASP-C (traversal), GASP-D (idle/personality), GASP-E (swarm integration + 100-robot perf test)
+**Depends On:** AMXRobotActor (Phase 2A), UMXSwarmController (Agent 8), SandboxCharacter_CMC.uasset
+**Prompt:** `MicroExodus_GASP_Integration_Prompt.md`
+
 ### Phase 2C-Polish: Selection Visual Feedback
 **Purpose:** Draw box select rectangle on screen, move destination marker.
 **Approach:** HUD class with Canvas drawing, or UMG overlay widget.

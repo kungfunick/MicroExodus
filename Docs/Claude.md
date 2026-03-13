@@ -98,12 +98,29 @@ When adding any new system, ask: "Can a designer tweak every parameter from the 
 - **Forward declarations for circular deps.** Use `class UMXFoo;` after `.generated.h` include when headers would create circular dependencies.
 - **Update tracking docs after every session.** README.md, CHANGE_LOG.md, Claude.md, Agents.md, and ISSUES.md must all be synced to Claude.ai Project knowledge and GitHub after each phase.
 
+## Cross-Chat Sync Protocol
+
+MicroExodus uses **separate specialised Claude chats** (PM, dev, bugs/fixes, animation). Changes made in one chat must propagate to the others via these tracking docs. Every chat must follow this protocol:
+
+**At session end**, every chat outputs:
+1. Updated versions of any tracking docs it changed (Claude.md, Agents.md, CHANGE_LOG.md, ISSUES.md, README.md)
+2. A **sync summary** listing: files created/modified, issues resolved/opened, decisions made, key patterns discovered
+3. A reminder for the developer to sync all updated docs to Claude.ai Project knowledge AND GitHub
+
+**At session start**, every chat should:
+1. Read the latest tracking docs from project knowledge (they may have been updated by another chat)
+2. Ask the developer if there are changes from other chats not yet reflected in project knowledge
+
+**CHANGE_LOG.md** entries must include which chat produced them (e.g., "Chat: Bugs & Fixes", "Chat: PM", "Chat: GASP Animation").
+
+**ISSUES.md** is the single source of truth for bugs. All chats read and write it.
+
 ## Planned Features (Next Up)
 
-- **Phase 2C-Polish:** Box select HUD drawing, move destination marker, walk animation
+- **Phase GASP:** Integrate GASP locomotion via UMXAnimBridge (resolves ISS-001 T-pose). Distance matching, turn-in-place, traversal, idle variants. Prompt ready: `MicroExodus_GASP_Integration_Prompt.md`
+- **Phase 2C-Polish:** Box select HUD drawing, move destination marker
 - **Phase 2D:** Name display improvements (font, scale, occlusion)
 - **Phase 2E:** Wire UMXProceduralGen for room-based layouts (replace simple grid)
 - **Phase 2F:** Robot spawn UI (+ button, type picker, stat viewer)
-- **Phase 2-Next:** Blueprint-to-C++ linking with SandboxCharacter_CMC, AnimBP
-- **Phase 3:** Mannequin mesh, materials, idle/walk animation
-- **Phase 4:** Robot movement with boid behaviors, hazard testing
+- **Phase 3:** Mannequin materials, hat attachment, evolution visuals
+- **Phase 4:** Swarm boid movement driving robot actors, hazard testing

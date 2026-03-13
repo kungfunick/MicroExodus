@@ -4,6 +4,57 @@ All notable changes to this project are documented here. Entries are reverse-chr
 
 ---
 
+## [2026-03-10] — GASP Integration Prompt + Cross-Chat Sync Protocol
+
+**Chat:** PM chat
+**Phase:** Planning
+
+### Changes
+- Created `MicroExodus_GASP_Integration_Prompt.md` — continuation prompt for GASP animation integration chat
+- Designed UMXAnimBridge architecture: C++ component decouples engine logic from animation display
+- Added Cross-Chat Sync Protocol to Claude.md — ensures changes from debug/dev/animation chats propagate via tracking docs
+- Reconciled all tracking docs with debug chat fixes (ISS-R05 through ISS-R15)
+
+### Decisions
+- Cherry-pick GASP locomotion/traversal only — NOT its input, camera, or controller
+- UMXAnimBridge reads CMC state, exposes UPROPERTYs to AnimBP — zero GASP headers in C++
+- Animation layer fully swappable: different AnimBP + Bridge = different visual style, same engine
+- Phased: GASP-A (inspection), GASP-B (locomotion), GASP-C (traversal), GASP-D (idle), GASP-E (swarm perf)
+
+---
+
+## [2026-03-10] — Bugs & Fixes Session: Camera, Scaling, Input, Editor SDK
+
+**Chat:** Bugs & Fixes dev chat
+**Phase:** 2C-Move (polish)
+
+### Changes
+- Fixed double-miniaturization (ISS-R05): capsule sized in constructor, mesh-only scale via `SetRelativeScale3D` — never `SetActorScale3D` on ACharacter with custom capsule
+- Fixed scroll zoom (ISS-R06 → ISS-R12): went through 3 iterations, landed on `GetInputAnalogKeyState(EKeys::MouseWheelAxis)` — the only reliable UE5 approach for scroll wheel
+- Fixed WASD pan direction (ISS-R07): `GetPlanarDirections()` now reads from `CameraRig->GetActorRotation().Yaw`, not `GetControlRotation()` which never updates when rotating the rig directly
+- Fixed tablecloth drag (ISS-R07): removed extra `* DeltaTime` that was zeroing movement
+- Implemented double-click behavior (ISS-R08): robot = center + zoom in, ground = center only
+- Fixed name text position (ISS-R09): Z=26, WorldSize=2.0 for unscaled actor
+- Removed edge pan again (ISS-R10): was still present despite earlier removal attempt
+- Fixed keyboard input (ISS-R11): `SetInputMode(FInputModeGameAndUI)` in BeginPlay — required when `bShowMouseCursor=true` with no possessed pawn
+- Fixed spawn area (ISS-R13): `SpawnRadius` UPROPERTY, circle formation around floor center
+- Added Home key reset view (ISS-R14): resets position, zoom, and yaw
+- Added `BindToFullProfile()` (ISS-R15): editor-visible personality, role, title, colours
+- Fixed `Role` UPROPERTY shadowing `AActor::Role` — renamed to `RobotRole`
+- Established Editor SDK Philosophy: all tunables = EditAnywhere, all runtime data = VisibleAnywhere
+
+### Key Patterns Established
+- **Miniaturized ACharacter scaling:** Fixed capsule + mesh-only `SetRelativeScale3D`, never `SetActorScale3D`
+- **Scroll wheel input:** Must use `GetInputAnalogKeyState(EKeys::MouseWheelAxis)`
+- **Keyboard with mouse cursor:** Requires `SetInputMode(FInputModeGameAndUI)` in BeginPlay
+- **Camera rig rotation:** Read `CameraRig->GetActorRotation().Yaw`, not `GetControlRotation()`
+- **UPROPERTY shadowing:** Custom props must not shadow inherited AActor properties
+
+### Issues Resolved
+ISS-R05 through ISS-R15 (11 issues). See ISSUES.md for full details.
+
+---
+
 ## [2026-03-09] — Camera Fix + Issue Tracker + Bug Fix Prompt
 
 **Chat:** Dev chat (selection & movement)
