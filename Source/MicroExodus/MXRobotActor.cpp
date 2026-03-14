@@ -12,6 +12,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Kismet/GameplayStatics.h"
 #include "Camera/CameraComponent.h"
+#include "MXAnimBridge.h"
 
 // ---------------------------------------------------------------------------
 // Constructor
@@ -84,6 +85,8 @@ AMXRobotActor::AMXRobotActor()
             SelectionRingComponent->SetStaticMesh(CylinderMesh);
         }
     }
+
+    AnimBridge = CreateDefaultSubobject<UMXAnimBridge>(TEXT("AnimBridge"));
 }
 
 // ---------------------------------------------------------------------------

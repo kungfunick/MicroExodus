@@ -464,6 +464,47 @@ Bus->OnRobotDied.AddDynamic(this, &UMyClass::HandleRobotDied);
 
 ---
 
+## Phase Anim-A: Animation Bridge Foundation (Complete)
+
+**Status:** Code delivered, pending compilation ⏳
+**Files:** MXAnimBridge.h/cpp (new), MXTypes.h (3 enums added), MXRobotActor.h/cpp (patched)
+
+### UMXAnimBridge (ActorComponent on AMXRobotActor)
+
+**Purpose:** Pure C++ decoupling layer between game logic and Animation Blueprint. Reads CMC state each tick, exposes animation-relevant UPROPERTYs. Zero external animation system dependencies — works with any AnimBP (built-in Manny, custom, or GASP if re-integrated later).
+
+**Exposed State (VisibleAnywhere, BlueprintReadOnly):**
+- `Speed` (float), `SpeedNormalized` (float), `Direction` (float), `bIsMoving` (bool), `bIsFalling` (bool), `bHasMoveTarget` (bool), `LocomotionState` (EMXLocomotionState)
+- `TurnAngle` (float), `bShouldTurnInPlace` (bool)
+- `Acceleration` (float), `LeanAngle` (float)
+- `bIsTraversing` (bool), `ActiveTraversalType` (ETraversalType)
+- `IdleVariant` (int32), `IdleTime` (float)
+
+**Config (EditAnywhere):** MovingThreshold(5), TurnInPlaceThreshold(45°), LeanInterpSpeed(8), MaxLeanAngle(15°), IdleFidgetDelay(5s), StopToIdleDelay(0.2s)
+
+**Action API (BlueprintCallable):** PlayTraversalAction(), EndTraversal(), PlayActionMontage()→bool, StopActionMontage(), SetIdleVariant()
+
+**Montage Config:** `MontageMap` TMap<EMXActionMontage, TSoftObjectPtr<UAnimMontage>> — EditAnywhere
+
+**Events:** OnLocomotionStateChanged, OnTraversalStarted, OnActionMontageEnded
+
+**Shared Enums (MXTypes.h):** EMXLocomotionState, ETraversalType, EMXActionMontage
+
+**Depends On:** AMXRobotActor (Phase 2A), UCharacterMovementComponent (engine)
+
+---
+
+## Update "Planned Modules" — Replace GASP section with:
+
+### Phase Anim-B: Basic Locomotion AnimBP (Blueprint Work)
+**Purpose:** Create ABP_MXRobot and BS_MXRobot_Locomotion in Unreal Editor. BlendSpace1D driven by AnimBridge.Speed (0=idle, 150=walk, 300=run). Uses built-in UE5 Manny animations (MM_Idle, MM_Walk_Fwd, MM_Run_Fwd). Resolves ISS-001 (T-pose).
+**Type:** Blueprint-only work in editor (no C++ changes needed)
+**Depends On:** UMXAnimBridge (Anim-A ✓), Manny content plugin
+**Guide:** GASP_Removal_And_BasicLocomotion_Guide.md
+
+### GASP Status: Removed (2026-03-13)
+SandboxCharacter_CMC.uasset deleted. GASP integration prompt retired. AnimBridge designed to be animation-system-agnostic — GASP can be re-integrated later by swapping the AnimBP internals without any C++ changes.
+
 ## Planned Modules (Not Started)
 
 ### Phase GASP: Animation & Locomotion Integration (Prompt Ready)

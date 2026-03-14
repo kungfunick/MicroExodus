@@ -14,6 +14,7 @@
 
 class UTextRenderComponent;
 class UStaticMeshComponent;
+class UMXAnimBridge;
 struct FMXRobotProfile;
 
 // ---------------------------------------------------------------------------
@@ -201,6 +202,11 @@ public:
     /** Optional soft reference for skeletal mesh (C++ mesh assignment). */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|Robot|Config")
     TSoftObjectPtr<USkeletalMesh> SkeletalMeshAsset;
+
+    /** Animation bridge — reads CMC state and exposes to AnimBP. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot|Animation")
+    TObjectPtr<UMXAnimBridge> AnimBridge;
+
 
 protected:
 

@@ -109,6 +109,44 @@ enum class ENameTheme : uint8
     Custom      UMETA(DisplayName = "Custom"),
 };
 
+/** High-level locomotion state exposed by UMXAnimBridge. Drives AnimBP state machine. */
+UENUM(BlueprintType)
+enum class EMXLocomotionState : uint8
+{
+    Idle        UMETA(DisplayName = "Idle"),
+    Starting    UMETA(DisplayName = "Starting"),
+    Walking     UMETA(DisplayName = "Walking"),
+    Stopping    UMETA(DisplayName = "Stopping"),
+    Falling     UMETA(DisplayName = "Falling"),
+    Traversing  UMETA(DisplayName = "Traversing"),
+};
+
+/** Traversal action types triggered by level obstacles. */
+UENUM(BlueprintType)
+enum class ETraversalType : uint8
+{
+    None    UMETA(DisplayName = "None"),
+    Vault   UMETA(DisplayName = "Vault"),
+    Climb   UMETA(DisplayName = "Climb"),
+    Mantle  UMETA(DisplayName = "Mantle"),
+    Slide   UMETA(DisplayName = "Slide"),
+    Jump    UMETA(DisplayName = "Jump"),
+};
+
+/** Action montage types that C++ game logic can trigger on the AnimBP. */
+UENUM(BlueprintType)
+enum class EMXActionMontage : uint8
+{
+    None        UMETA(DisplayName = "None"),
+    Rescue      UMETA(DisplayName = "Rescue"),
+    Flinch      UMETA(DisplayName = "Flinch"),
+    Death       UMETA(DisplayName = "Death"),
+    Sacrifice   UMETA(DisplayName = "Sacrifice"),
+    Celebrate   UMETA(DisplayName = "Celebrate"),
+    Interact    UMETA(DisplayName = "Interact"),
+    HatEquip    UMETA(DisplayName = "Hat Equip"),
+};
+
 /** Tier 2 specialization â€” chosen when the robot meets the role unlock threshold. */
 UENUM(BlueprintType)
 enum class ETier2Spec : uint8
