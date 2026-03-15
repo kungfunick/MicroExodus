@@ -43,12 +43,12 @@ AMXRobotActor::AMXRobotActor()
     UCharacterMovementComponent* CMC = GetCharacterMovement();
     if (CMC)
     {
-        CMC->MaxWalkSpeed = 150.0f;
+        CMC->MaxWalkSpeed = 400.0f;
         CMC->bOrientRotationToMovement = true;
         CMC->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
         CMC->GravityScale = 1.0f;
-        CMC->MaxAcceleration = 800.0f;
-        CMC->BrakingDecelerationWalking = 400.0f;
+        CMC->MaxAcceleration = 1600.0f;
+        CMC->BrakingDecelerationWalking = 800.0f;
         CMC->bUseControllerDesiredRotation = false;
         // CRITICAL: Robots are NOT possessed by a controller.
         // Without this, CMC skips its entire tick and AddMovementInput does nothing.
@@ -119,14 +119,6 @@ void AMXRobotActor::BeginPlay()
         {
             GetMesh()->SetSkeletalMesh(LoadedMesh);
         }
-    }
-
-    // Apply Animation Blueprint if one is configured.
-    // Set this in BP_MXRobot Details → MX|Robot|Animation → Anim Blueprint Class.
-    if (AnimBlueprintClass && GetMesh())
-    {
-        GetMesh()->SetAnimInstanceClass(AnimBlueprintClass);
-        UE_LOG(LogTemp, Log, TEXT("MXRobotActor: AnimBP set to %s"), *AnimBlueprintClass->GetName());
     }
 
     // Update CMC speed from config.
@@ -276,8 +268,19 @@ void AMXRobotActor::TickMovement(float DeltaTime)
     // Compute movement direction on XY plane.
     FVector Direction = ToTarget.GetSafeNormal2D();
 
+    // Scale movement input by distance: walk when close, run when far.
+    // At WalkDistance, transition from full run (1.0) to walk pace (~0.4).
+    // This drives the CMC velocity which in turn drives the BlendSpace.
+    float InputScale = 1.0f;
+    if (DistXY < WalkDistance)
+    {
+        // Ramp from 0.35 (walk) at StopDistance to 1.0 (run) at WalkDistance.
+        float Alpha = FMath::Clamp((DistXY - StopDistance) / (WalkDistance - StopDistance), 0.0f, 1.0f);
+        InputScale = FMath::Lerp(0.35f, 1.0f, Alpha);
+    }
+
     // Use AddMovementInput — CharacterMovementComponent handles the physics.
-    AddMovementInput(Direction, 1.0f);
+    AddMovementInput(Direction, InputScale);
 
     // Smooth rotation toward movement direction.
     if (!Direction.IsNearlyZero())

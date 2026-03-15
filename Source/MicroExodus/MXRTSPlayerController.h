@@ -187,7 +187,6 @@ private:
     // -------------------------------------------------------------------------
 
     void HandleLeftMouseInput(float DeltaTime);
-    void HandleRightClickMove();
     void HandleControlGroups();
     void HandleSelectAll();
     void HandleDoubleClick(const FVector2D& ClickPos);

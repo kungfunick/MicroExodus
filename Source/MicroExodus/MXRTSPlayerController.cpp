@@ -130,12 +130,10 @@ void AMXRTSPlayerController::HandleRotation(float DeltaTime)
         float DeltaX = CurrentMouse.X - MiddleMouseDownPos.X;
         float DeltaY = CurrentMouse.Y - MiddleMouseDownPos.Y;
 
-        // Yaw: rotate the camera rig actor.
         FRotator RigRot = CameraRig->GetActorRotation();
         RigRot.Yaw += DeltaX * RotateSpeed;
         CameraRig->SetActorRotation(RigRot);
 
-        // Pitch: adjust the spring arm's relative pitch, clamped.
         if (CachedSpringArm)
         {
             FRotator ArmRot = CachedSpringArm->GetRelativeRotation();
@@ -204,8 +202,6 @@ void AMXRTSPlayerController::HandleDragPan(float DeltaTime)
         FVector Forward, Right;
         GetPlanarDirections(Forward, Right);
 
-        // Inverted for grab-and-drag (tablecloth) feel.
-        // Delta is already per-frame pixel movement — do NOT multiply by DeltaTime.
         float ZoomScale = CachedSpringArm ? (CachedSpringArm->TargetArmLength / 800.0f) : 1.0f;
         FVector PanOffset = (-Right * Delta.X + Forward * Delta.Y) * DragPanSpeed * ZoomScale;
         CameraRig->AddActorWorldOffset(PanOffset);
@@ -298,42 +294,37 @@ void AMXRTSPlayerController::HandleLeftMouseInput(float DeltaTime)
 
         if (bIsDraggingBoxSelect)
         {
-            // Finalize box select.
             SelectionManager->EndBoxSelect(bShift);
         }
         else
         {
-            // Single click — check for double-click first.
+            // Double-click check.
             float Now = GetWorld()->GetTimeSeconds();
             float TimeSinceLastClick = Now - LastLeftClickTime;
             float DistFromLastClick = FVector2D::Distance(ReleasePos, LastLeftClickPos);
 
             if (TimeSinceLastClick < DoubleClickTime && DistFromLastClick < DoubleClickRadius)
             {
-                // Double-click.
                 HandleDoubleClick(ReleasePos);
                 LastLeftClickTime = -1.0f;
             }
             else
             {
-                // Single click: check what's under cursor.
+                // Single click: robot = select, ground = move.
                 AMXRobotActor* HitRobot = GetRobotUnderCursor();
 
                 if (HitRobot)
                 {
-                    // Clicked a robot — select it.
                     SelectionManager->TrySelectAtCursor(bShift);
                 }
                 else if (SelectionManager->HasSelection())
                 {
-                    // Clicked ground with active selection — move command.
                     FVector GroundHit;
                     if (GetGroundHitUnderCursor(GroundHit))
                     {
                         IssueMoveCommand(GroundHit);
                     }
                 }
-                // Clicked empty ground with no selection — do nothing.
             }
 
             LastLeftClickTime = Now;

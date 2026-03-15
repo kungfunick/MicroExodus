@@ -15,7 +15,6 @@
 class UTextRenderComponent;
 class UStaticMeshComponent;
 class UMXAnimBridge;
-class UAnimInstance;
 struct FMXRobotProfile;
 
 // ---------------------------------------------------------------------------
@@ -176,13 +175,17 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|Robot|Config")
     float RobotScale = 0.20f;
 
-    /** Walk speed in cm/s. */
+    /** Max movement speed in cm/s. Drives CMC MaxWalkSpeed. BS_Idle_Walk_Run thresholds: ~165=walk, ~375=run. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|Robot|Config")
-    float MoveSpeed = 150.0f;
+    float MoveSpeed = 400.0f;
 
     /** Distance from target at which the robot stops (cm). */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|Robot|Config")
     float StopDistance = 20.0f;
+
+    /** Distance below which robots walk instead of run (cm). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|Robot|Config")
+    float WalkDistance = 150.0f;
 
     /** Rotation interpolation speed (degrees/sec effective). */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|Robot|Config")
@@ -203,14 +206,6 @@ public:
     /** Optional soft reference for skeletal mesh (C++ mesh assignment). */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|Robot|Config")
     TSoftObjectPtr<USkeletalMesh> SkeletalMeshAsset;
-
-    /**
-     * Animation Blueprint class to assign to the mesh.
-     * Set this in BP_MXRobot Details panel to the GASP or custom AnimBP.
-     * If None, robots will remain in T-pose.
-     */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|Robot|Animation")
-    TSubclassOf<UAnimInstance> AnimBlueprintClass;
 
     /** Animation bridge — reads CMC state and exposes to AnimBP. */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot|Animation")
