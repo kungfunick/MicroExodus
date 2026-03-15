@@ -1,6 +1,6 @@
 # MicroExodus — Issue Tracker
 
-**Last Updated:** 2026-03-13
+**Last Updated:** 2026-03-10 (PM session — 6 new issues from playtesting)
 
 All known issues, bugs, and improvement requests. Issues are resolved in dev chats and marked with status. Resolved issues are kept for history.
 
@@ -11,84 +11,144 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 ### ISS-001 — Robots in T-pose (no AnimBP)
 **Severity:** Visual | **Phase:** 2A | **Since:** 2026-03-08
 **Description:** Robots spawn with default T-pose because no Animation Blueprint is assigned to the skeletal mesh. Movement works (CharacterMovementComponent) but robots slide in T-pose.
-**Progress:** UMXAnimBridge component delivered (2026-03-13). Three animation enums in MXTypes.h. AnimBridge auto-attached to AMXRobotActor. GASP removed — using built-in UE5 Manny animations instead.
-**Fix plan:** Create ABP_MXRobot AnimBP in editor with BS_MXRobot_Locomotion BlendSpace1D (Idle→Walk→Run driven by AnimBridge.Speed). Assign to SkeletalMeshComponent. See GASP_Removal_And_BasicLocomotion_Guide.md Steps 2–4.
+**Blocked by:** Need GASP locomotion integration, UMXAnimBridge component, ABP_MXRobot AnimBP.
+**Fix plan:** Phase GASP-B — GASP locomotion state machine wired via UMXAnimBridge. Prompt ready: `MicroExodus_GASP_Integration_Prompt.md`.
+
+### ISS-002 — ~~Scroll wheel zoom uses IsInputKeyDown polling~~
+**Severity:** Minor UX | **Phase:** 2B | **Since:** 2026-03-08
+**Status:** RESOLVED 2026-03-10 — Replaced with `WasInputKeyJustPressed(EKeys::MouseScrollUp/Down)`. See ISS-R06.
+
+### ISS-003 — SandboxCharacter_CMC.uasset not inspected
+**Severity:** Planning | **Phase:** 2-Next | **Since:** 2026-03-08
+**Description:** The migrated Blueprint from Game Animation Sample hasn't been opened to verify skeleton compatibility, animation retarget setup, or CharacterMovementComponent configuration.
+**Fix plan:** Phase GASP-A — first action in the GASP integration chat. See `MicroExodus_GASP_Integration_Prompt.md`.
 
 ### ISS-004 — Box select rectangle not drawn on screen
 **Severity:** Visual/UX | **Phase:** 2C | **Since:** 2026-03-09
-**Description:** Box selection works functionally but no rectangle drawn during drag.
-**Fix plan:** Create `AMXRTSHUD` with `DrawHUD()` override.
+**Description:** Box selection works functionally (robots get selected on release) but the selection rectangle is not drawn on screen during drag. Needs a HUD class with Canvas drawing or UMG overlay.
+**Fix plan:** Create `AMXRTSHUD` with `DrawHUD()` override, draw box rect from SelectionManager's BoxStart/BoxEnd.
 
 ### ISS-005 — Right-click move vs rotate threshold may need tuning
 **Severity:** UX | **Phase:** 2C | **Since:** 2026-03-09
-**Fix plan:** Playtest and adjust thresholds.
+**Description:** Right-click distinguishes move command from camera rotation by click duration (<0.25s, <10px drag = move). May feel unresponsive or trigger unintended moves. Needs playtesting.
+**Fix plan:** Playtest and adjust thresholds. Consider: right-click always = move when selection exists, Alt+right-click = rotate.
 
 ### ISS-006 — Floor tile material may not accept "Color" parameter
 **Severity:** Cosmetic | **Phase:** 2C | **Since:** 2026-03-09
-**Fix plan:** Check parameter name in editor. May need "BaseColor".
+**Description:** `AMXTestFloorGenerator` creates `UMaterialInstanceDynamic` from BasicShapeMaterial and calls `SetVectorParameterValue("Color", ...)`. BasicShapeMaterial may not expose a "Color" parameter — tiles may appear default grey/white instead of dark checkerboard.
+**Fix plan:** Check parameter name in editor. May need to use a custom material or different parameter name (e.g., "BaseColor").
 
 ### ISS-007 — Themed name system not yet wired
 **Severity:** Feature incomplete | **Phase:** 2C | **Since:** 2026-03-09
-**Fix plan:** Apply Patches 1-3 from ThemedNameEvolution_SetupGuide.md.
+**Description:** MXNameTheme and MXNameEvolution files are compiled but not wired into GameInstance, RobotManager, or RunManager. Robots still use plain first names only. Three patches documented in ThemedNameEvolution_SetupGuide.md.
+**Fix plan:** Apply Patches 1-3 from the setup guide: profile fields, GameInstance wiring, RobotManager stamping.
+
+### ISS-008 — ~~Double-click center camera may conflict with double-click select~~
+**Severity:** UX | **Phase:** 2C | **Since:** 2026-03-09
+**Status:** RESOLVED 2026-03-10 — Replaced with proper HandleDoubleClick: raycast for robot first (zoom in), ground hit (center only, no zoom). See ISS-R08.
+
+### ISS-019 — Robots not moving when selected and right-click issued
+**Severity:** Gameplay (broken) | **Phase:** 2C | **Since:** 2026-03-10
+**Description:** After selecting robots and right-clicking a ground target, robots don't move. Movement was working previously — likely regression from debug session changes to MoveToLocation, AddMovementInput, or the right-click move command threshold/detection in HandleRightClickMove(). Mesh revert to standard Manny may also have affected CMC settings.
+**Fix plan:** Debug HandleRightClickMove → IssueMoveCommand → MoveToLocation → AddMovementInput pipeline. Check CMC config (MaxWalkSpeed, gravity, movement mode). Verify right-click isn't consumed entirely by rotation.
+
+### ISS-020 — Selection broken: not all robots selected, box select unreliable
+**Severity:** Gameplay (broken) | **Phase:** 2C | **Since:** 2026-03-10
+**Description:** Click-select and box-select are inconsistent — some robots can't be selected, and box drag doesn't reliably capture all robots in the rectangle. Related to ISS-004 (no visual box), but this is a functional failure not just visual. May be collision/trace channel issue after mesh revert, or IsActorInScreenRect projection off with current capsule/mesh configuration.
+**Fix plan:** Check SelectionTraceChannel (ECC_Pawn) matches robot collision. Verify RaycastForRobot hit detection. Check IsActorInScreenRect projection against current actor bounds.
+
+### ISS-021 — Some robots appear halfway embedded in the floor
+**Severity:** Visual | **Phase:** 2C | **Since:** 2026-03-10
+**Description:** After reverting to standard Manny mesh, some robots spawn with their lower half inside the floor tiles. Likely capsule/mesh offset (Z=-18) or spawn Z offset not matching current mesh bounds.
+**Fix plan:** Verify capsule half-height vs mesh bottom. Check spawn Z offset. May need to adjust mesh relative Z or spawn position.
+
+### ISS-022 — Selection indicator hard to see, name text scales with zoom
+**Severity:** UX | **Phase:** 2C | **Since:** 2026-03-10
+**Description:** (a) Selection ring (cylinder at feet) is difficult to see. (b) Name text (UTextRenderComponent) scales with camera distance — unreadable at far zoom, giant at close. Should maintain constant screen size. Name text colour should be green.
+**Fix plan:** (a) Increase ring scale, brighter material, consider decal. (b) Scale NameTextComponent WorldSize inversely with camera distance each tick. Change colours to green variants.
+
+### ISS-023 — No camera pitch control (RMB should pitch and yaw)
+**Severity:** Feature request | **Phase:** 2C | **Since:** 2026-03-10
+**Description:** Right-click drag only rotates yaw. Requested: RMB + mouse left/right = yaw, mouse forward = pitch up, mouse backward = pitch down. Full orbital camera feel.
+**Fix plan:** In HandleRotation(), read mouse Y delta → apply to SpringArm pitch. Clamp to sensible range (-80° to -10°) to prevent underground/flip.
+
+### ISS-024 — No visual indicator for control groups
+**Severity:** Feature request | **Phase:** 2C | **Since:** 2026-03-10
+**Description:** No HUD feedback showing which control groups (Ctrl+1-9) are assigned or how many robots are in each. Requested: HUD bar at top showing bound groups with unit count, e.g., `[1] (3)  [2] (5)  [4] (2)`. Only groups with robots appear. Active group highlighted.
+**Fix plan:** Create AMXRTSHUD (or UMG widget) reading UMXSelectionManager::ControlGroups. Combine with ISS-004 (box select rectangle) in same HUD class.
 
 ---
 
 ## Resolved Issues
 
-### ~~ISS-R17~~ — GASP removed, SandboxCharacter_CMC deleted (ISS-003)
-**Severity:** Planning | **Phase:** Anim-A | **Resolved:** 2026-03-13
-**Description:** GASP was producing errors. Decision: remove all GASP content, use built-in UE5 Manny animations instead. SandboxCharacter_CMC.uasset deleted. GASP integration prompt retired. AnimBridge (zero GASP deps) retained.
-**Files removed:** Content/Blueprints/SandboxCharacter_CMC.uasset, MicroExodus_GASP_Integration_Prompt.md
-
-### ~~ISS-R16~~ — UMXAnimBridge component created (ISS-001 partial)
-**Severity:** Feature | **Phase:** Anim-A | **Resolved:** 2026-03-13
-**Description:** UMXAnimBridge ActorComponent delivered. Reads CMC state, exposes animation variables. Zero GASP dependencies.
-**Files:** MXAnimBridge.h/.cpp, three enums in MXTypes.h, AnimBridge on AMXRobotActor.
-
 ### ~~ISS-R05~~ — Robots hover above floor plane (ISS-009)
-**Resolved:** 2026-03-09. Mesh-only scale, fixed capsule, corrected Z offset.
+**Severity:** Visual | **Phase:** 2C | **Resolved:** 2026-03-09
+**Root cause:** Double-miniaturization. Constructor set mini capsule `InitCapsuleSize(8, 18)`, then BeginPlay called `SetActorScale3D(0.2)` on the entire actor, shrinking the capsule to an effective 3.6cm half-height. Spawn collision adjustment positioned the capsule for the pre-scale size, then the scale change left it floating. Additionally, the mesh relative Z was still at the ACharacter default (−88) instead of matching our mini capsule (−18).
+**Fix:** (1) Constructor: added `GetMesh()->SetRelativeLocation(FVector(0, 0, -18))` after `InitCapsuleSize`. (2) BeginPlay: replaced `SetActorScale3D(RobotScale)` with `GetMesh()->SetRelativeScale3D(RobotScale)` — scales only the mesh, not the actor/capsule. (3) Reduced spawn Z offset from 20 to 5. Files: MXRobotActor.cpp, MXSpawnTestGameMode.cpp.
 
 ### ~~ISS-R06~~ — Scroll zoom not working (ISS-002)
-**Resolved:** 2026-03-10. `GetInputAnalogKeyState(EKeys::MouseWheelAxis)`.
+**Severity:** UX | **Phase:** 2B → Fixed 2C | **Resolved:** 2026-03-10
+**Root cause:** `IsInputKeyDown(EKeys::MouseScrollUp/Down)` unreliable — scroll fires as single-frame press/release events that `IsInputKeyDown` misses at high framerates.
+**Fix:** Replaced with `WasInputKeyJustPressed(EKeys::MouseScrollUp/Down)` which catches the frame transition. File: MXRTSPlayerController.cpp.
 
-### ~~ISS-R07~~ — WASD pan + tablecloth drag broken (ISS-010)
-**Resolved:** 2026-03-10. Read CameraRig yaw, remove extra DeltaTime.
+### ~~ISS-R07~~ — WASD pan direction doesn't follow camera yaw + tablecloth drag broken (ISS-010)
+**Severity:** UX | **Phase:** 2C | **Resolved:** 2026-03-10
+**Root cause:** Two bugs. (1) `GetPlanarDirections()` used `GetControlRotation()` which never updates when we rotate the camera rig actor directly — pan always went in the initial world direction. (2) `HandleDragPan()` multiplied the per-frame mouse delta by `DeltaTime` a second time, effectively zeroing the movement (~0.016 at 60fps).
+**Fix:** (1) `GetPlanarDirections()` now reads `CameraRig->GetActorRotation().Yaw` so WASD/drag follow camera orientation. (2) Removed extra `* DeltaTime` from drag pan, added zoom-proportional scaling. File: MXRTSPlayerController.cpp.
 
-### ~~ISS-R08~~ — Double-click behavior (ISS-008 + ISS-011)
-**Resolved:** 2026-03-10. Robot=center+zoom, ground=center only.
+### ~~ISS-R08~~ — Double-click behavior implemented (ISS-008 + ISS-011)
+**Severity:** Feature | **Phase:** 2C | **Resolved:** 2026-03-10
+**Description:** Double-click on robot: centers camera and zooms in to `DoubleClickRobotZoom` (150cm arm length). Double-click on ground: centers camera on that point, no zoom change. Uses 0.3s/20px thresholds (configurable UPROPERTYs).
+**Files:** MXRTSPlayerController.h/cpp.
 
-### ~~ISS-R09~~ — Name text position (ISS-012)
-**Resolved:** 2026-03-10. Z=26, WorldSize=2.0.
+### ~~ISS-R09~~ — Name text appeared in centre of mesh (ISS-012)
+**Severity:** Visual | **Phase:** 2C | **Resolved:** 2026-03-10
+**Root cause:** NameTextComponent relative Z=45 and WorldSize=8 were designed for actor-scale 0.2 (effective Z=9, size=1.6). After ISS-009 fix (mesh-only scale), actor is unscaled so Z=45 was above the robot and WorldSize=8 was giant. SelectionRing Z=-17 was also slightly off.
+**Fix:** NameText relative Z → 26 (8cm above head), WorldSize → 2.0. SelectionRing relative Z → -18 (exact feet). File: MXRobotActor.cpp.
 
-### ~~ISS-R01~~ — Name text always visible
-**Resolved:** 2026-03-09. Hidden by default, shown on hover/select.
+### ~~ISS-R01~~ — Name text display always visible
+**Severity:** Visual | **Phase:** 2A → Fixed 2C | **Resolved:** 2026-03-09
+**Fix:** Names hidden by default, shown on hover/selection only. `SetSelected()`/`SetHovered()` on AMXRobotActor.
 
-### ~~ISS-R02~~ — Manual Plane, no collision, GravityScale=0
-**Resolved:** 2026-03-09. Procedural floor with collision.
+### ~~ISS-R02~~ — Manual Plane mesh, no collision, GravityScale=0 hack
+**Severity:** Gameplay | **Phase:** 2A → Fixed 2C | **Resolved:** 2026-03-09
+**Fix:** `AMXTestFloorGenerator` spawns collision-enabled cube tiles. GravityScale restored to 1.0.
 
-### ~~ISS-R03~~ — Edge pan drift
-**Resolved:** 2026-03-09. HandleEdgePan removed.
+### ~~ISS-R03~~ — Edge-of-screen panning causes camera drift
+**Severity:** UX | **Phase:** 2B → Fixed 2C | **Resolved:** 2026-03-09
+**Fix:** Removed `HandleEdgePan()` entirely. Camera controls: arrow keys, middle-click tablecloth drag, double-click center, right-click rotate, scroll zoom.
 
-### ~~ISS-R04~~ — Interface assertion crash
-**Resolved:** 2026-03-09. Execute_ pattern.
+### ~~ISS-R04~~ — GetRobotProfile called directly on interface (assertion crash)
+**Severity:** Crash | **Phase:** 2C | **Resolved:** 2026-03-09
+**Fix:** Changed to `IMXRobotProvider::Execute_GetRobotProfile()` pattern. Added `#include "MXInterfaces.h"`.
 
-### ~~ISS-R10~~ — Edge pan still present (ISS-013)
-**Resolved:** 2026-03-10. Fully purged.
+### ~~ISS-R10~~ — Edge-of-screen pan still active (ISS-013)
+**Severity:** UX | **Phase:** 2C | **Resolved:** 2026-03-10
+**Description:** `HandleEdgePan()` was still called in PlayerTick and function body still present despite ISS-R03 noting it was removed. Edge pan was causing unwanted camera drift when mousing to screen edges.
+**Fix:** Removed `HandleEdgePan()` call from PlayerTick, deleted entire function body, removed `EdgePanSpeed` and `EdgePanThreshold` UPROPERTYs and declaration from header. Files: MXRTSPlayerController.h/cpp.
 
-### ~~ISS-R11~~ — Keyboard not working (ISS-014)
-**Resolved:** 2026-03-10. SetInputMode(FInputModeGameAndUI).
+### ~~ISS-R11~~ — WASD / arrow keys not working (ISS-014)
+**Severity:** UX | **Phase:** 2C | **Resolved:** 2026-03-10
+**Root cause:** With `bShowMouseCursor = true` and `DefaultPawnClass = nullptr`, UE5 defaults to UI-only input mode. Mouse events work through the separate click/hover pipeline (`bEnableClickEvents`), but keyboard events don't reach `IsInputKeyDown` without explicit game input mode.
+**Fix:** Added `SetInputMode(FInputModeGameAndUI())` in BeginPlay with `DoNotLock` mouse and `HideCursorDuringCapture(false)`. File: MXRTSPlayerController.cpp.
 
-### ~~ISS-R12~~ — Scroll wheel (ISS-015)
-**Resolved:** 2026-03-10. Analog key state.
+### ~~ISS-R12~~ — Scroll wheel zoom not working (ISS-015)
+**Severity:** UX | **Phase:** 2B | **Resolved:** 2026-03-10
+**Root cause:** Both `IsInputKeyDown` and `WasInputKeyJustPressed` are unreliable for scroll wheel in UE5. The scroll wheel fires as a sub-frame analog impulse, not a sustained digital key state, so digital key detection misses it.
+**Fix:** Replaced with `GetInputAnalogKeyState(EKeys::MouseWheelAxis)` which reads the raw analog scroll value each tick. This is the standard UE5 approach. File: MXRTSPlayerController.cpp.
 
-### ~~ISS-R13~~ — Spawn area too large (ISS-016)
-**Resolved:** 2026-03-10. SpawnRadius + circle formation.
+### ~~ISS-R13~~ — Robots spawn across entire floor, fall off edges (ISS-016)
+**Severity:** Gameplay | **Phase:** 2C | **Resolved:** 2026-03-10
+**Root cause:** `GetRandomFloorPosition(100)` returns positions across the entire 2020cm floor. 8 tiny 36cm robots scattered across 4 million cm² is far too sparse, and edge positions risk falling off.
+**Fix:** Added `SpawnRadius` UPROPERTY (default 300cm) to AMXSpawnTestGameMode. Robots now spawn in a circle formation around floor center instead of random full-floor positions. File: MXSpawnTestGameMode.h/cpp.
 
-### ~~ISS-R14~~ — No reset view (ISS-017)
-**Resolved:** 2026-03-10. Home key.
+### ~~ISS-R14~~ — No reset view key (ISS-017)
+**Severity:** Feature | **Phase:** 2C | **Resolved:** 2026-03-10
+**Fix:** Home key resets camera to initial position (floor center), default zoom (800cm), and 0° yaw. Added `DefaultZoom` UPROPERTY (800) and `InitialCameraPos` tracking. File: MXRTSPlayerController.h/cpp.
 
-### ~~ISS-R15~~ — No editor-visible profile data (ISS-018)
-**Resolved:** 2026-03-10. BindToFullProfile.
+### ~~ISS-R15~~ — Robot actors lack editor-visible profile data (ISS-018)
+**Severity:** Feature | **Phase:** 2C | **Resolved:** 2026-03-10
+**Fix:** Added `BindToFullProfile(FMXRobotProfile)` to AMXRobotActor. Populates VisibleAnywhere UPROPERTYs: PersonalityDescription, Quirk, Likes, Dislikes, Role, Level, DisplayedTitle, ChassisColor, EyeColor. SpawnTestGameMode calls full binding when Identity module is available. Click a robot in the editor Outliner → Details panel shows all generated data. Files: MXRobotActor.h/cpp, MXSpawnTestGameMode.cpp.
 
 ---
 
