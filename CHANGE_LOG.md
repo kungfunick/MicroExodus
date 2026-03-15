@@ -4,6 +4,53 @@ All notable changes to this project are documented here. Entries are reverse-chr
 
 ---
 
+## [2026-03-15] — Bug Fix Marathon: Input Remap + Movement + Animation + HUD
+
+**Chat:** Bugs & Fixes dev chat
+**Phase:** 2C-Move (bug fixes + polish + animation)
+
+### Input Scheme Remap (ISS-R21)
+- **LMB** = select + move (click robot = select, click ground with selection = move, drag = box select)
+- **RMB** = tablecloth camera pan (was MMB). DragPanSpeed tuned to 3.0
+- **MMB** = yaw + pitch rotation (was RMB)
+- Deleted `HandleRightClickMove()` entirely — no more fragile timing thresholds
+- Control groups: Shift+1-9 save, 1-9 recall (fixed FKey("1") → EKeys::One)
+
+### Movement Fixes (ISS-R16, R26, R27)
+- `bRunPhysicsWithNoController = true` — CMC was skipping tick for unpossessed robots
+- `bUseControllerRotationYaw = false` in constructor AND BeginPlay — BP serialisation was overriding
+- Removed manual `SetActorRotation` from TickMovement — was fighting CMC's `bOrientRotationToMovement`
+- Mesh rotation `FRotator(0, -90, 0)` — mannequin faces +Y, character forward is +X
+- MoveSpeed 150→400, WalkDistance=150 for distance-based walk/run scaling
+
+### Selection + Visual Fixes (ISS-R17, R18, R19, R22, R23, R24)
+- Capsule `InitCapsuleSize(14, 20)` + explicit Pawn collision profile
+- Spawn Z = capsule half-height (20) so robots sit on floor
+- Green selection ring (0.40 scale), green name text, constant screen size (`Dist * 0.03f`)
+- Box select green rectangle drawn via AMXRTSHUD
+- Control group HUD: "Selected: N" + `[1] (3) [2] (5)` indicators
+
+### Animation (ISS-R27)
+- Created `MXAnimInstance` C++ base class — auto-reads Speed/Direction/bIsMoving from UMXAnimBridge
+- Pipeline: CMC → AnimBridge (tick) → MXAnimInstance (NativeUpdateAnimation) → BS_Idle_Walk_Run
+- Editor setup: reparent ABP_Unarmed to MXAnimInstance, wire BlendSpace, set AnimBlueprintClass
+
+### New Files
+- MXAnimInstance.h/cpp — C++ AnimInstance base
+- MXRTSHUD.h/cpp — box select rectangle + control group HUD
+
+### Issues Resolved
+ISS-R16 through ISS-R28 (13 issues). See ISSUES.md.
+
+### Key Patterns Discovered
+- Mannequin mesh needs -90° yaw rotation (faces +Y, character forward is +X)
+- `bUseControllerRotationYaw` must be false for unpossessed characters
+- `FKey("1")` silently fails — must use `EKeys::One`
+- Blueprint serialisation overwrites constructor values — force in BeginPlay too
+- `bRunPhysicsWithNoController` required for unpossessed ACharacter movement
+
+---
+
 ## [2026-03-10] — Playtest Issue Logging (6 new issues)
 
 **Chat:** PM chat

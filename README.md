@@ -8,24 +8,43 @@ Miniaturised mannequin robots navigate procedurally generated hazard levels. Bet
 
 ## Current State
 
-**Phase 2C-Move — Selection, Click-to-Move, Procedural Floor.** The C++ engine logic (~130 files, 14 modules) compiles and is connected to Unreal Editor visuals. A spawn test level features miniaturised robots on a procedurally generated collision floor. Players can select robots (click, box-drag, Ctrl+groups) and right-click to issue move commands. RTS camera with zoom, pan, and rotation. Next: walk animation, box select HUD, SandboxCharacter_CMC integration.
+**Phase 2C-Move — Selection, Click-to-Move, Animation, HUD.** The C++ engine logic (~135 files, 14 modules) compiles and is connected to Unreal Editor visuals. A spawn test level features miniaturised robots on a procedurally generated collision floor with idle/walk/run animation via BS_Idle_Walk_Run BlendSpace. Players select robots (click, box-drag, Shift+multi, Shift+1-9 groups) and left-click ground to issue move commands. Robots walk to nearby targets and run to distant ones. RTS camera with zoom, tablecloth pan, yaw/pitch rotation, and reset view.
 
 See [CHANGE_LOG.md](CHANGE_LOG.md) for detailed session history.
+
+## Controls
+
+| Input | Action |
+|-------|--------|
+| **LMB click robot** | Select (Shift = additive) |
+| **LMB click ground** (with selection) | Move selected robots |
+| **LMB drag** | Box select (green rectangle) |
+| **RMB drag** | Tablecloth camera pan |
+| **MMB drag** | Camera yaw (X) + pitch (Y) |
+| Scroll wheel | Zoom in/out |
+| WASD / Arrows | Keyboard pan (follows camera yaw) |
+| Home | Reset view |
+| Double-click robot | Center + zoom in |
+| Double-click ground | Center camera |
+| Shift+1-9 | Save control group |
+| 1-9 | Recall control group |
+| Ctrl+A | Select all |
 
 ## Project Structure
 
 ```
 MicroExodus/
-├── Source/MicroExodus/       ← All C++ source files (flat structure, ~130 files)
+├── Source/MicroExodus/       ← All C++ source files (flat structure, ~135 files)
 ├── Content/
 │   ├── Blueprints/           ← BP_MXGameInstance, BP_MXRobot, BP_MXSpawnTestGameMode,
-│   │                            SandboxCharacter_CMC (from Game Animation Sample)
+│   │                            ABP_Unarmed, SandboxCharacter_CMC
 │   ├── Maps/                 ← L_SpawnTest
 │   └── Materials/            ← (planned: M_Robot_Master)
 ├── Config/                   ← DefaultEngine.ini, DefaultGame.ini
 ├── Claude.md                 ← AI assistant orientation (read this first)
 ├── Agents.md                 ← Module registry with per-module status
 ├── CHANGE_LOG.md             ← Chronological project history
+├── ISSUES.md                 ← Bug tracker with open/resolved issues
 └── README.md                 ← This file
 ```
 
@@ -54,6 +73,19 @@ All cross-module communication uses the **EventBus** (delegate-based) and **prov
 | 13 | Assembly | UMXRobotAssembler | Modular mesh system, per-part destruction, LOD |
 | 14 | Factory | UMXRobotFactory | Pre-level lobby: recruit pools, friend codes, upgrades |
 
+### Phase 2 Editor Integration
+
+| Class | Purpose |
+|-------|---------|
+| AMXRobotActor | Robot actor: selection, movement, name display, animation |
+| AMXRTSPlayerController | Camera + selection + movement input |
+| UMXSelectionManager | Click/box/group selection logic |
+| AMXTestFloorGenerator | Procedural grid floor |
+| AMXSpawnTestGameMode | Test level setup |
+| AMXRTSHUD | Box select rectangle + control group display |
+| UMXAnimBridge | CMC → animation variable bridge |
+| UMXAnimInstance | C++ AnimInstance base for BlendSpace |
+
 ### Key Config
 
 ```ini
@@ -67,6 +99,7 @@ GameDefaultMap=/Engine/Maps/Templates/OpenWorld
 - **Engine:** Unreal Engine 5.7 (Lumen GI, Virtual Shadow Maps, Substrate, Nanite, DX12/SM6)
 - **Language:** C++ with Blueprint integration
 - **Character:** UE5 Manny/Quinn mannequin at 0.20 scale (~36cm tall)
+- **Animation:** BS_Idle_Walk_Run BlendSpace via MXAnimInstance + UMXAnimBridge
 - **Assets:** Quixel Megascans (free), Derelict Corridor (free), Steve's UE Helpers (free)
 - **Target:** PC, 60fps at 1080p with 100 on-screen robots
 
@@ -78,13 +111,14 @@ GameDefaultMap=/Engine/Maps/Templates/OpenWorld
 
 ## Development Workflow
 
-Development uses **Claude.ai Projects** with specialised continuation prompts per work stream. Each session produces updated tracking documents:
+Development uses **Claude.ai Projects** with specialised continuation prompts per work stream:
 
 | Document | Purpose |
 |----------|---------|
-| `Claude.md` | AI orientation — current state, conventions, known issues |
+| `Claude.md` | AI orientation — current state, conventions, technical patterns |
 | `Agents.md` | Module registry — files, status, dependencies per module |
 | `CHANGE_LOG.md` | Session history — what changed, decisions made, issues found |
+| `ISSUES.md` | Bug tracker — open issues, resolved with root cause analysis |
 | `README.md` | Public overview — project structure, tech stack, build info |
 
 **Source of truth:** GitHub repo (`kungfunick/MicroExodus`). Claude.ai Project knowledge is synced from GitHub.

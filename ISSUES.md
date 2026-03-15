@@ -1,6 +1,6 @@
 # MicroExodus — Issue Tracker
 
-**Last Updated:** 2026-03-10 (input remap session — LMB select+move, RMB camera, MMB rotate)
+**Last Updated:** 2026-03-15 (comprehensive sync — all sessions consolidated)
 
 All known issues, bugs, and improvement requests. Issues are resolved in dev chats and marked with status. Resolved issues are kept for history.
 
@@ -10,9 +10,7 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 
 ### ISS-001 — Robots in T-pose (no AnimBP)
 **Severity:** Visual | **Phase:** 2A | **Since:** 2026-03-08
-**Description:** Robots spawn with default T-pose because no Animation Blueprint is assigned to the skeletal mesh. Movement works (CharacterMovementComponent) but robots slide in T-pose.
-**Blocked by:** Need GASP locomotion integration, UMXAnimBridge component, ABP_MXRobot AnimBP.
-**Fix plan:** Phase GASP-B — GASP locomotion state machine wired via UMXAnimBridge. Prompt ready: `MicroExodus_GASP_Integration_Prompt.md`.
+**Status:** PARTIALLY RESOLVED 2026-03-15 — Animation pipeline working (MXAnimInstance + BS_Idle_Walk_Run). Requires manual editor setup: reparent ABP_Unarmed to MXAnimInstance, wire BlendSpace Speed/Direction, set AnimBlueprintClass on BP_MXRobot. Full GASP integration (distance matching, traversal, idle variants) deferred to Phase GASP-B.
 
 ### ISS-002 — ~~Scroll wheel zoom uses IsInputKeyDown polling~~
 **Severity:** Minor UX | **Phase:** 2B | **Since:** 2026-03-08
@@ -183,6 +181,26 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 **Severity:** UX | **Phase:** 2C | **Resolved:** 2026-03-10
 **Root cause:** `Dist * 0.008f` at 500cm = 4cm character height — unreadable.
 **Fix:** Changed to `Dist * 0.03f`, clamped 5–50. At 500cm → 15cm characters — clearly readable at default zoom. File: MXRobotActor.cpp.
+
+### ~~ISS-R25~~ — Mannequin mesh faces wrong direction (ISS-028)
+**Severity:** Visual | **Phase:** 2C | **Resolved:** 2026-03-15
+**Root cause:** UE5 mannequin mesh faces +Y, but ACharacter's forward axis is +X. Without a -90° yaw correction, robots visually face sideways while moving correctly.
+**Fix:** Added `GetMesh()->SetRelativeRotation(FRotator(0, -90, 0))` in constructor. File: MXRobotActor.cpp.
+
+### ~~ISS-R26~~ — Robots don't turn to face movement direction (ISS-029)
+**Severity:** Gameplay | **Phase:** 2C | **Resolved:** 2026-03-15
+**Root cause:** Three compounding issues: (1) `bUseControllerRotationYaw = true` (default or BP-serialised) overrides CMC rotation — unpossessed robots have no controller so rotation target is always 0°. (2) Manual `SetActorRotation()` in TickMovement fought CMC's `bOrientRotationToMovement`. (3) Blueprint serialisation overwrote constructor values.
+**Fix:** (1) Set `bUseControllerRotationYaw/Pitch/Roll = false` in both constructor AND BeginPlay. (2) Removed manual `SetActorRotation` from TickMovement. (3) Force `bOrientRotationToMovement = true` in BeginPlay. (4) Bumped RotationRate to 720°/s. File: MXRobotActor.cpp.
+
+### ~~ISS-R27~~ — Animation pipeline (MXAnimInstance + walk/run blending) (ISS-030)
+**Severity:** Feature | **Phase:** 2C | **Resolved:** 2026-03-15
+**Description:** Created MXAnimInstance C++ AnimInstance base class that auto-reads Speed, Direction, bIsMoving, bIsFalling, LeanAngle from UMXAnimBridge every tick via NativeUpdateAnimation. Properties are directly usable as BlendSpace axes. MoveSpeed bumped 150→400, added WalkDistance=150 for distance-based speed scaling (walk close, run far). MaxAcceleration 800→1600.
+**Editor setup:** Reparent ABP_Unarmed to MXAnimInstance, wire BS_Idle_Walk_Run with Speed/Direction, set AnimBlueprintClass on BP_MXRobot.
+**Files:** MXAnimInstance.h/cpp (new), MXRobotActor.h/cpp.
+
+### ~~ISS-R28~~ — DragPanSpeed tuned (ISS-031)
+**Severity:** UX | **Phase:** 2C | **Resolved:** 2026-03-15
+**Fix:** DragPanSpeed default adjusted to 3.0 (was 2.0 invisible, 8.0 too fast). Property on PlayerController under MX|RTS|Camera. File: MXRTSPlayerController.h.
 
 ---
 

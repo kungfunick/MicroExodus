@@ -1,6 +1,6 @@
 # MicroExodus — Claude Project Orientation
 
-**Last Updated:** 2026-03-10
+**Last Updated:** 2026-03-15
 **Repo:** github.com/kungfunick/MicroExodus
 **Engine:** Unreal Engine 5.7 (C++, DX12/SM6, Lumen, Substrate)
 
@@ -12,117 +12,86 @@ A UE5 roguelike where players manage swarms of miniaturised mannequin robots (~3
 
 ## Architecture Philosophy
 
-The C++ engine handles all game logic — calculations, profiles, events, procedural generation — for speed and determinism. Unreal handles rendering, animation, audio, and UI. This separation means the entire game logic layer is pure code, while visual presentation is handled through Blueprints, materials, and UMG widgets.
+The C++ engine handles all game logic for speed and determinism. Unreal handles rendering, animation, audio, and UI. All cross-module communication uses events (MXEvents.h delegates), interfaces (MXInterfaces.h), and DataTables. No module directly references another module's concrete class.
 
-All cross-module communication uses: events (MXEvents.h delegates), interfaces (MXInterfaces.h), and DataTables. No module directly references another module's concrete class — they communicate through the EventBus and provider interfaces.
-
-## Current State (Phase 2C-Move)
-
-**Compiling:** All 120+ source files compile. Phase 2C-Move adds 4 new files and modifies 6 — see Phase2C_Move_SetupGuide.md for potential compilation notes.
+## Current State (Phase 2C-Move — Working ✓)
 
 **Phase 2A (Complete):** Blueprint-to-C++ integration ✓
 **Phase 2B (Complete):** RTS Camera Controller ✓
+**Phase 2C-Move (Working ✓):** Selection + Click-to-Move + Floor + Animation + HUD
 
-**Phase 2C-Move (In Progress):** Selection + Click-to-Move + Procedural Floor:
-- UMXSelectionManager: click-select, box-select, Shift+multi, Ctrl+1-9 groups, Ctrl+A select all
-- AMXRobotActor updated: selection/hover state, MoveToLocation with CMC, conditional name display, full profile binding with VisibleAnywhere identity/personality/role fields
-- AMXTestFloorGenerator: procedural grid floor with collision (replaces manual Plane mesh)
-- AMXRTSPlayerController: WASD/arrow pan (follows camera yaw), middle-click tablecloth drag, right-click yaw rotate, scroll zoom (analog axis), double-click (robot=zoom, ground=center), Home=reset view
-- AMXSpawnTestGameMode: spawns floor → robots → camera, configurable SpawnRadius for tight central spawning
+Working features as of 2026-03-15:
+- Robots spawn on procedural grid floor, animate with BS_Idle_Walk_Run BlendSpace via MXAnimInstance
+- LMB click robot = select, LMB click ground = move, LMB drag = box select (green HUD rect)
+- RMB drag = tablecloth camera pan, MMB drag = yaw/pitch rotation, scroll = zoom
+- Green selection ring + constant-size green name text + "Selected: N" HUD
+- Shift+1-9 save control groups, 1-9 recall (HUD shows `[1] (3) [2] (5)`)
+- Home = reset view, Ctrl+A = select all, double-click robot = zoom in
+- Walk/run distance-based speed scaling (MoveSpeed=400, WalkDistance=150)
+- UMXAnimBridge → MXAnimInstance → BS_Idle_Walk_Run pipeline
 - All config exposed as EditAnywhere UPROPERTYs (Editor SDK philosophy)
 
-**Themed Name Evolution (New):** Per-robot naming themes stamped at birth from run selection:
-- 6 themes: Robot, Wizard, Pirate, Samurai, SciFi, Mythic (~420 names)
-- Theme is per-RUN → mixed roster: "Barnacle Planksworth Captain Scourge" next to "Bolt Sprocket The Fireproof"
-- Requires 3 patches: surname + name_theme on FMXRobotProfile, GameInstance wiring, RobotManager stamping
-- See ThemedNameEvolution_SetupGuide.md for details
+**Open Issues:** ISS-001 (T-pose when no AnimBP set), ISS-003 (SandboxCharacter_CMC), ISS-006 (floor material), ISS-007 (themed names not wired). See ISSUES.md.
 
-**Known Issues:** See `ISSUES.md` for full tracker (14 open, 15 resolved). Critical blockers from 2026-03-10 playtest:
-1. ISS-019: Robot movement broken (right-click move not working)
-2. ISS-020: Selection broken (not all robots selectable, box select unreliable)
-3. ISS-021: Some robots embedded in floor after Manny mesh revert
-4. ISS-022: Selection ring hard to see, name text scales with zoom (should be constant, green)
-5. ISS-023: No camera pitch control
-6. ISS-024: No control group HUD indicators
+## Input Scheme (Current)
 
-## File Structure
-
-All C++ source is in `Source/MicroExodus/` — **flat structure, no subdirectories**.
-
-```
-Source/MicroExodus/           ← All .h/.cpp files (flat, ~130 files)
-Content/Blueprints/           ← BP_MXGameInstance, BP_MXRobot, BP_MXSpawnTestGameMode, SandboxCharacter_CMC
-Content/Maps/                 ← L_SpawnTest
-Config/                       ← DefaultEngine.ini, DefaultGame.ini
-```
-
-## Key Config
-
-```ini
-# DefaultEngine.ini
-GameInstanceClass=/Game/Blueprints/BP_MXGameInstance.BP_MXGameInstance_C
-GameDefaultMap=/Engine/Maps/Templates/OpenWorld
-```
-
-## Build Dependencies (MicroExodus.Build.cs)
-
-Core, CoreUObject, Engine, InputCore, Json, JsonUtilities, UMG, Slate, SlateCore
-
-## Module Initialisation Order (in UMXGameInstance::Init)
-
-1. EventBus (via UMXEventBusSubsystem — auto-created as GameInstance subsystem)
-2. NameGenerator → PersonalityGenerator → LifeLog → AgingSystem
-3. RobotManager.Initialize(NameGen, PersonalityGen, LifeLog, Aging)
-4. DEMS: DedupBuffer → TemplateSelector → MessageBuilder → MessageDispatcher
-5. HatManager.Initialize(EventBus, RobotManager)
-6. RunManager.Initialise(EventBus, RobotProvider, HatProvider, TierTable, XPTable)
-7. SpecTree.Initialize(SpecTreeTable, RobotProvider, EventBus)
-8. RunReportEngine.Initialize(EventBus)
+| Input | Action |
+|-------|--------|
+| LMB click robot | Select (Shift = additive) |
+| LMB click ground (with selection) | Move selected robots |
+| LMB drag | Box select (green rectangle) |
+| RMB drag | Tablecloth camera pan |
+| MMB drag | Camera yaw (X) + pitch (Y) |
+| Scroll wheel | Zoom in/out |
+| WASD / Arrows | Keyboard pan (follows camera yaw) |
+| Home | Reset view (center, zoom, pitch, yaw) |
+| Double-click robot | Center + zoom in |
+| Double-click ground | Center camera (no zoom) |
+| Shift+1-9 | Save control group |
+| 1-9 | Recall control group |
+| Ctrl+A | Select all |
 
 ## Editor SDK Philosophy
 
-The test levels (L_SpawnTest and future test maps) are not throwaway scaffolding — they are the **SDK for the engine**. Every gameplay parameter, spawn setting, camera tuning value, and robot configuration must be editable in the Unreal Editor Details panel without recompilation. This applies to all current and future C++ classes:
+Test levels are the **SDK for the engine**. Every parameter editable in Details panel without recompilation:
+- **Tunables:** `EditAnywhere, BlueprintReadWrite` with `MX|Module|Subsystem` categories
+- **Runtime data:** `VisibleAnywhere, BlueprintReadOnly`
+- **Class refs:** `TSubclassOf<>` or `TSoftObjectPtr<>` for BP overrides
+- **Hierarchical categories:** `MX|Robot|Config`, `MX|RTS|Camera`, etc.
 
-- **All tunables are `EditAnywhere, BlueprintReadWrite` UPROPERTYs** with descriptive `Category` tags following the `MX|Module|Subsystem` naming convention.
-- **Generated data is `VisibleAnywhere, BlueprintReadOnly`** so developers can inspect runtime state (robot profiles, personalities, roles) directly in the editor Outliner.
-- **Class references use `TSubclassOf<>` or `TSoftObjectPtr<>`** so Blueprints can override C++ defaults without code changes.
-- **Config values should have sensible defaults** that produce a working scene without any manual setup.
-- **Categories are hierarchical:** `MX|Robot|Config`, `MX|Robot|Profile`, `MX|RTS|Camera`, `MX|SpawnTest|Floor`, etc. This groups related properties in the Details panel.
+## Critical Technical Patterns
 
-When adding any new system, ask: "Can a designer tweak every parameter from the editor?" If not, wrap it in a UPROPERTY.
+| Pattern | Correct | Wrong |
+|---------|---------|-------|
+| Robot mesh scale | `GetMesh()->SetRelativeScale3D(0.20)` | `SetActorScale3D` (double-mini) |
+| Capsule | `InitCapsuleSize(14, 20)` fixed in constructor | Scaling capsule with actor |
+| Mesh Z offset | `SetRelativeLocation(0, 0, -20)` | Default -88 from ACharacter |
+| Mesh facing | `SetRelativeRotation(0, -90, 0)` | Default 0° (mannequin +Y vs char +X) |
+| Unpossessed CMC | `bRunPhysicsWithNoController = true` | Default false (CMC skips tick) |
+| Character rotation | `bUseControllerRotationYaw = false` + `bOrientRotationToMovement = true` | bUseControllerRotationYaw true |
+| Scroll wheel | `GetInputAnalogKeyState(EKeys::MouseWheelAxis)` | IsInputKeyDown/WasJustPressed |
+| Keyboard + cursor | `SetInputMode(FInputModeGameAndUI)` in BeginPlay | Default UI-only mode |
+| Camera yaw source | `CameraRig->GetActorRotation().Yaw` | `GetControlRotation()` |
+| Number key FKeys | `EKeys::One` through `EKeys::Nine` | `FKey("1")` (silent fail) |
+| Interface calls | `IMXFoo::Execute_Method(Object, Args)` | Direct call (crash) |
+| UPROPERTY naming | `RobotRole` | `Role` (shadows AActor::Role) |
+| BP serialisation | Force values in BeginPlay too | Constructor only (BP overwrites) |
 
 ## Critical Conventions
 
-- **GitHub is source of truth.** After any fix, sync to both local project AND push to repo. Stale files cause previously resolved errors to reappear.
-- **Audit before fixing.** Read headers for exact signatures and wiring before writing new code. The modules were AI-generated by separate agents — assume nothing.
-- **Flat includes.** All `#include` paths are bare filenames (e.g., `#include "MXRobotManager.h"`) — no subdirectory prefixes.
-- **Blueprint serialisation overrides constructors.** Component transforms set in a C++ constructor get overwritten by Blueprint child class serialised values. Set transforms in BeginPlay instead.
-- **Forward declarations for circular deps.** Use `class UMXFoo;` after `.generated.h` include when headers would create circular dependencies.
-- **Update tracking docs after every session.** README.md, CHANGE_LOG.md, Claude.md, Agents.md, and ISSUES.md must all be synced to Claude.ai Project knowledge and GitHub after each phase.
+- **GitHub is source of truth.** Sync after every fix.
+- **Flat includes.** `#include "MXFoo.h"` — no subdirectory prefixes.
+- **Shared enums** in `MXTypes.h`.
+- **Update tracking docs** after every session: Claude.md, Agents.md, CHANGE_LOG.md, ISSUES.md, README.md.
 
 ## Cross-Chat Sync Protocol
 
-MicroExodus uses **separate specialised Claude chats** (PM, dev, bugs/fixes, animation). Changes made in one chat must propagate to the others via these tracking docs. Every chat must follow this protocol:
+Separate Claude chats (PM, dev, bugs/fixes, animation). At session end: output updated docs + sync summary. At session start: read latest project knowledge.
 
-**At session end**, every chat outputs:
-1. Updated versions of any tracking docs it changed (Claude.md, Agents.md, CHANGE_LOG.md, ISSUES.md, README.md)
-2. A **sync summary** listing: files created/modified, issues resolved/opened, decisions made, key patterns discovered
-3. A reminder for the developer to sync all updated docs to Claude.ai Project knowledge AND GitHub
+## Planned Features
 
-**At session start**, every chat should:
-1. Read the latest tracking docs from project knowledge (they may have been updated by another chat)
-2. Ask the developer if there are changes from other chats not yet reflected in project knowledge
-
-**CHANGE_LOG.md** entries must include which chat produced them (e.g., "Chat: Bugs & Fixes", "Chat: PM", "Chat: GASP Animation").
-
-**ISSUES.md** is the single source of truth for bugs. All chats read and write it.
-
-## Planned Features (Next Up)
-
-- **Phase GASP:** Integrate GASP locomotion via UMXAnimBridge (resolves ISS-001 T-pose). Distance matching, turn-in-place, traversal, idle variants. Prompt ready: `MicroExodus_GASP_Integration_Prompt.md`
-- **Phase 2C-Polish:** Box select HUD drawing, move destination marker
-- **Phase 2D:** Name display improvements (font, scale, occlusion)
-- **Phase 2E:** Wire UMXProceduralGen for room-based layouts (replace simple grid)
+- **Phase GASP-B:** Full GASP locomotion (distance matching, traversal, idle variants)
+- **Phase 2E:** Wire UMXProceduralGen for room-based layouts
 - **Phase 2F:** Robot spawn UI (+ button, type picker, stat viewer)
-- **Phase 3:** Mannequin materials, hat attachment, evolution visuals
-- **Phase 4:** Swarm boid movement driving robot actors, hazard testing
+- **Phase 3:** Materials, hat attachment, evolution visuals
+- **Phase 4:** Swarm boid movement, hazard testing
