@@ -22,6 +22,15 @@ AMXRobotActor::AMXRobotActor()
 {
     PrimaryActorTick.bCanEverTick = true;
 
+    // ---- Character rotation: CMC drives rotation, NOT the controller ----
+    // These MUST be false for bOrientRotationToMovement to work.
+    // If bUseControllerRotationYaw is true, the character tries to match
+    // controller yaw — but unpossessed robots have no controller, so rotation
+    // never updates and robots face the wrong direction.
+    bUseControllerRotationPitch = false;
+    bUseControllerRotationYaw = false;
+    bUseControllerRotationRoll = false;
+
     // ---- Capsule sizing for miniaturised robot ----
     // Default mannequin is ~180cm. At 0.20 scale = ~36cm.
     // Capsule: radius 14cm, half-height 20cm — slightly oversized for easy click-selection.
@@ -37,6 +46,8 @@ AMXRobotActor::AMXRobotActor()
     if (GetMesh())
     {
         GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, -20.0f));
+        // UE5 mannequin faces +Y, but ACharacter forward is +X. Rotate -90° to align.
+        GetMesh()->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
     }
 
     // ---- Character Movement ----
@@ -122,11 +133,20 @@ void AMXRobotActor::BeginPlay()
     }
 
     // Update CMC speed from config.
+    // Also force rotation settings here — Blueprint serialisation may override constructor values.
     UCharacterMovementComponent* CMC = GetCharacterMovement();
     if (CMC)
     {
         CMC->MaxWalkSpeed = MoveSpeed;
+        CMC->bOrientRotationToMovement = true;
+        CMC->bUseControllerDesiredRotation = false;
+        CMC->bRunPhysicsWithNoController = true;
     }
+
+    // Force character rotation flags — must be false for CMC rotation to work.
+    bUseControllerRotationPitch = false;
+    bUseControllerRotationYaw = false;
+    bUseControllerRotationRoll = false;
 
     // Create selection ring material.
     if (SelectionRingComponent)
