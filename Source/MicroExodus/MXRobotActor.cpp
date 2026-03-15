@@ -45,7 +45,7 @@ AMXRobotActor::AMXRobotActor()
     {
         CMC->MaxWalkSpeed = 400.0f;
         CMC->bOrientRotationToMovement = true;
-        CMC->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
+        CMC->RotationRate = FRotator(0.0f, 720.0f, 0.0f);
         CMC->GravityScale = 1.0f;
         CMC->MaxAcceleration = 1600.0f;
         CMC->BrakingDecelerationWalking = 800.0f;
@@ -280,16 +280,9 @@ void AMXRobotActor::TickMovement(float DeltaTime)
     }
 
     // Use AddMovementInput — CharacterMovementComponent handles the physics.
+    // CMC's bOrientRotationToMovement + RotationRate handles facing direction.
+    // Do NOT manually SetActorRotation here — it fights the CMC.
     AddMovementInput(Direction, InputScale);
-
-    // Smooth rotation toward movement direction.
-    if (!Direction.IsNearlyZero())
-    {
-        FRotator TargetRot = Direction.Rotation();
-        FRotator CurrentRot = GetActorRotation();
-        FRotator NewRot = FMath::RInterpTo(CurrentRot, TargetRot, DeltaTime, RotationInterpSpeed);
-        SetActorRotation(NewRot);
-    }
 }
 
 // ---------------------------------------------------------------------------
