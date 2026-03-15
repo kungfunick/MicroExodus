@@ -142,6 +142,10 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MX|Selection")
     bool HasSelection() const { return SelectedRobots.Num() > 0; }
 
+    /** Get the number of valid robots in a control group (1-9). Returns 0 if unassigned. */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MX|Selection")
+    int32 GetControlGroupCount(int32 GroupIndex) const;
+
     // -------------------------------------------------------------------------
     // Delegates
     // -------------------------------------------------------------------------

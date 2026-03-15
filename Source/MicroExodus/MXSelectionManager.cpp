@@ -251,6 +251,19 @@ int32 UMXSelectionManager::GetSelectedCount() const
     return Count;
 }
 
+int32 UMXSelectionManager::GetControlGroupCount(int32 GroupIndex) const
+{
+    const TArray<TWeakObjectPtr<AMXRobotActor>>* Group = ControlGroups.Find(GroupIndex);
+    if (!Group) return 0;
+
+    int32 Count = 0;
+    for (const auto& Weak : *Group)
+    {
+        if (Weak.IsValid()) ++Count;
+    }
+    return Count;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

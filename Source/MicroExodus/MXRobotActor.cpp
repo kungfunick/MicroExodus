@@ -121,6 +121,14 @@ void AMXRobotActor::BeginPlay()
         }
     }
 
+    // Apply Animation Blueprint if one is configured.
+    // Set this in BP_MXRobot Details → MX|Robot|Animation → Anim Blueprint Class.
+    if (AnimBlueprintClass && GetMesh())
+    {
+        GetMesh()->SetAnimInstanceClass(AnimBlueprintClass);
+        UE_LOG(LogTemp, Log, TEXT("MXRobotActor: AnimBP set to %s"), *AnimBlueprintClass->GetName());
+    }
+
     // Update CMC speed from config.
     UCharacterMovementComponent* CMC = GetCharacterMovement();
     if (CMC)

@@ -66,9 +66,8 @@ void AMXRTSPlayerController::PlayerTick(float DeltaTime)
     HandleDragPan(DeltaTime);
     HandleResetView();
 
-    // ---- Selection ----
+    // ---- Selection + Movement (all on LMB) ----
     HandleLeftMouseInput(DeltaTime);
-    HandleRightClickMove();
     HandleControlGroups();
     HandleSelectAll();
 
@@ -105,33 +104,31 @@ void AMXRTSPlayerController::HandleZoom(float DeltaTime)
 }
 
 // ---------------------------------------------------------------------------
-// Camera: Rotation (Right-click drag)
+// Camera: Rotation (Middle-click drag — yaw + pitch)
 // ---------------------------------------------------------------------------
 
 void AMXRTSPlayerController::HandleRotation(float DeltaTime)
 {
     if (!CameraRig) return;
 
-    bool bRightDown = IsInputKeyDown(EKeys::RightMouseButton);
+    bool bMiddleDown = IsInputKeyDown(EKeys::MiddleMouseButton);
 
-    if (bRightDown && !bRightMouseDown)
+    if (bMiddleDown && !bMiddleMouseDown)
     {
-        // Just pressed.
-        bRightMouseDown = true;
-        GetMousePosition(PreviousMousePos.X, PreviousMousePos.Y);
+        bMiddleMouseDown = true;
+        GetMousePosition(MiddleMouseDownPos.X, MiddleMouseDownPos.Y);
     }
-    else if (!bRightDown && bRightMouseDown)
+    else if (!bMiddleDown && bMiddleMouseDown)
     {
-        // Just released.
-        bRightMouseDown = false;
+        bMiddleMouseDown = false;
     }
 
-    if (bRightMouseDown)
+    if (bMiddleMouseDown)
     {
         FVector2D CurrentMouse;
         GetMousePosition(CurrentMouse.X, CurrentMouse.Y);
-        float DeltaX = CurrentMouse.X - PreviousMousePos.X;
-        float DeltaY = CurrentMouse.Y - PreviousMousePos.Y;
+        float DeltaX = CurrentMouse.X - MiddleMouseDownPos.X;
+        float DeltaY = CurrentMouse.Y - MiddleMouseDownPos.Y;
 
         // Yaw: rotate the camera rig actor.
         FRotator RigRot = CameraRig->GetActorRotation();
@@ -147,7 +144,7 @@ void AMXRTSPlayerController::HandleRotation(float DeltaTime)
             CachedSpringArm->SetRelativeRotation(ArmRot);
         }
 
-        PreviousMousePos = CurrentMouse;
+        MiddleMouseDownPos = CurrentMouse;
     }
 }
 
@@ -179,30 +176,30 @@ void AMXRTSPlayerController::HandleKeyboardPan(float DeltaTime)
 }
 
 // ---------------------------------------------------------------------------
-// Camera: Drag Pan (Middle-click)
+// Camera: Tablecloth Drag Pan (Right-click drag)
 // ---------------------------------------------------------------------------
 
 void AMXRTSPlayerController::HandleDragPan(float DeltaTime)
 {
     if (!CameraRig) return;
 
-    bool bMiddleDown = IsInputKeyDown(EKeys::MiddleMouseButton);
+    bool bRightDown = IsInputKeyDown(EKeys::RightMouseButton);
 
-    if (bMiddleDown && !bMiddleMouseDown)
+    if (bRightDown && !bRightMouseDown)
     {
-        bMiddleMouseDown = true;
-        GetMousePosition(MiddleMouseDownPos.X, MiddleMouseDownPos.Y);
+        bRightMouseDown = true;
+        GetMousePosition(PreviousMousePos.X, PreviousMousePos.Y);
     }
-    else if (!bMiddleDown && bMiddleMouseDown)
+    else if (!bRightDown && bRightMouseDown)
     {
-        bMiddleMouseDown = false;
+        bRightMouseDown = false;
     }
 
-    if (bMiddleMouseDown)
+    if (bRightMouseDown)
     {
         FVector2D CurrentMouse;
         GetMousePosition(CurrentMouse.X, CurrentMouse.Y);
-        FVector2D Delta = CurrentMouse - MiddleMouseDownPos;
+        FVector2D Delta = CurrentMouse - PreviousMousePos;
 
         FVector Forward, Right;
         GetPlanarDirections(Forward, Right);
@@ -213,7 +210,7 @@ void AMXRTSPlayerController::HandleDragPan(float DeltaTime)
         FVector PanOffset = (-Right * Delta.X + Forward * Delta.Y) * DragPanSpeed * ZoomScale;
         CameraRig->AddActorWorldOffset(PanOffset);
 
-        MiddleMouseDownPos = CurrentMouse;
+        PreviousMousePos = CurrentMouse;
     }
 }
 
@@ -251,7 +248,9 @@ void AMXRTSPlayerController::HandleResetView()
 }
 
 // ---------------------------------------------------------------------------
-// Selection: Left Mouse Input
+// Selection + Movement: Left Mouse Input
+// LMB click robot = select. LMB click ground (with selection) = move.
+// LMB drag = box select. Shift = additive select. Double-click = zoom.
 // ---------------------------------------------------------------------------
 
 void AMXRTSPlayerController::HandleLeftMouseInput(float DeltaTime)
@@ -261,14 +260,10 @@ void AMXRTSPlayerController::HandleLeftMouseInput(float DeltaTime)
     bool bLeftDown = IsInputKeyDown(EKeys::LeftMouseButton);
     bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
 
-    // Don't process selection while right-click rotating.
-    if (bRightMouseDown) return;
-
     // --- Just Pressed ---
     if (bLeftDown && !bLeftMouseDown)
     {
         bLeftMouseDown = true;
-        bLeftMouseJustPressed = true;
         bIsDraggingBoxSelect = false;
 
         FVector2D MousePos;
@@ -291,7 +286,6 @@ void AMXRTSPlayerController::HandleLeftMouseInput(float DeltaTime)
         }
 
         SelectionManager->UpdateBoxSelect(MousePos);
-        bLeftMouseJustPressed = false;
     }
 
     // --- Just Released ---
@@ -309,21 +303,37 @@ void AMXRTSPlayerController::HandleLeftMouseInput(float DeltaTime)
         }
         else
         {
-            // Check for double-click before single-click select.
+            // Single click — check for double-click first.
             float Now = GetWorld()->GetTimeSeconds();
             float TimeSinceLastClick = Now - LastLeftClickTime;
             float DistFromLastClick = FVector2D::Distance(ReleasePos, LastLeftClickPos);
 
             if (TimeSinceLastClick < DoubleClickTime && DistFromLastClick < DoubleClickRadius)
             {
-                // Double-click detected.
+                // Double-click.
                 HandleDoubleClick(ReleasePos);
-                LastLeftClickTime = -1.0f; // Reset so triple-click doesn't re-trigger.
+                LastLeftClickTime = -1.0f;
             }
             else
             {
-                // Single click select.
-                SelectionManager->TrySelectAtCursor(bShift);
+                // Single click: check what's under cursor.
+                AMXRobotActor* HitRobot = GetRobotUnderCursor();
+
+                if (HitRobot)
+                {
+                    // Clicked a robot — select it.
+                    SelectionManager->TrySelectAtCursor(bShift);
+                }
+                else if (SelectionManager->HasSelection())
+                {
+                    // Clicked ground with active selection — move command.
+                    FVector GroundHit;
+                    if (GetGroundHitUnderCursor(GroundHit))
+                    {
+                        IssueMoveCommand(GroundHit);
+                    }
+                }
+                // Clicked empty ground with no selection — do nothing.
             }
 
             LastLeftClickTime = Now;
@@ -335,82 +345,37 @@ void AMXRTSPlayerController::HandleLeftMouseInput(float DeltaTime)
 }
 
 // ---------------------------------------------------------------------------
-// Movement: Right-Click Move Command
-// ---------------------------------------------------------------------------
-
-void AMXRTSPlayerController::HandleRightClickMove()
-{
-    if (!SelectionManager) return;
-    if (!SelectionManager->HasSelection()) return;
-
-    // Detect right-click release (not drag-rotate).
-    // We use a simple approach: if right mouse was down briefly without much drag, it's a move command.
-    // For simplicity, we'll check for a dedicated move key instead.
-    // Actually: right-click is also used for rotation. We need to distinguish.
-    // Solution: short right-click = move command. Long right-click = rotation.
-    // We track the right mouse press time.
-
-    static float RightClickStartTime = 0.0f;
-    static bool bRightWasDown = false;
-    static FVector2D RightClickStartPos = FVector2D::ZeroVector;
-
-    bool bRightDown = IsInputKeyDown(EKeys::RightMouseButton);
-
-    if (bRightDown && !bRightWasDown)
-    {
-        // Just pressed.
-        RightClickStartTime = GetWorld()->GetTimeSeconds();
-        GetMousePosition(RightClickStartPos.X, RightClickStartPos.Y);
-        bRightWasDown = true;
-    }
-
-    if (!bRightDown && bRightWasDown)
-    {
-        // Just released.
-        bRightWasDown = false;
-
-        float HeldDuration = GetWorld()->GetTimeSeconds() - RightClickStartTime;
-        FVector2D ReleasePos;
-        GetMousePosition(ReleasePos.X, ReleasePos.Y);
-        float DragDist = FVector2D::Distance(RightClickStartPos, ReleasePos);
-
-        // Short click with minimal drag = move command.
-        if (HeldDuration < 0.25f && DragDist < 10.0f)
-        {
-            FVector GroundHit;
-            if (GetGroundHitUnderCursor(GroundHit))
-            {
-                IssueMoveCommand(GroundHit);
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Selection: Control Groups (Ctrl+1-9 to save, 1-9 to recall)
+// Selection: Control Groups (Shift+1-9 to save, 1-9 to recall)
 // ---------------------------------------------------------------------------
 
 void AMXRTSPlayerController::HandleControlGroups()
 {
     if (!SelectionManager) return;
 
-    bool bCtrl = IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl);
+    bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
 
-    // Check number keys 1-9.
-    for (int32 i = 1; i <= 9; ++i)
+    // Proper EKeys for number row. FKey("1") != EKeys::One in UE5.
+    static const FKey NumberKeys[] = {
+        EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five,
+        EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine
+    };
+
+    for (int32 i = 0; i < 9; ++i)
     {
-        FKey NumberKey = FKey(*FString::Printf(TEXT("%d"), i));
-        if (WasInputKeyJustPressed(NumberKey))
+        if (WasInputKeyJustPressed(NumberKeys[i]))
         {
-            if (bCtrl)
+            int32 GroupIndex = i + 1;
+            if (bShift)
             {
-                SelectionManager->SaveControlGroup(i);
+                SelectionManager->SaveControlGroup(GroupIndex);
+                UE_LOG(LogTemp, Log, TEXT("MXRTSPlayerController: Shift+%d — saved group."), GroupIndex);
             }
             else
             {
-                SelectionManager->RecallControlGroup(i);
+                SelectionManager->RecallControlGroup(GroupIndex);
+                UE_LOG(LogTemp, Log, TEXT("MXRTSPlayerController: %d — recalled group."), GroupIndex);
             }
-            break; // Only handle one per tick.
+            break;
         }
     }
 }

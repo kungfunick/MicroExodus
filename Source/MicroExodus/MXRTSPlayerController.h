@@ -79,8 +79,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
     float DefaultPitch = -45.0f;
 
+    /** Tablecloth drag speed multiplier. Higher = faster pan per pixel of mouse drag. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
-    float DragPanSpeed = 2.0f;
+    float DragPanSpeed = 3.0f;
 
     /** Default zoom level (arm length in cm) used by reset view (Home key). */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")

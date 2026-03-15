@@ -15,6 +15,7 @@
 class UTextRenderComponent;
 class UStaticMeshComponent;
 class UMXAnimBridge;
+class UAnimInstance;
 struct FMXRobotProfile;
 
 // ---------------------------------------------------------------------------
@@ -202,6 +203,14 @@ public:
     /** Optional soft reference for skeletal mesh (C++ mesh assignment). */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|Robot|Config")
     TSoftObjectPtr<USkeletalMesh> SkeletalMeshAsset;
+
+    /**
+     * Animation Blueprint class to assign to the mesh.
+     * Set this in BP_MXRobot Details panel to the GASP or custom AnimBP.
+     * If None, robots will remain in T-pose.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|Robot|Animation")
+    TSubclassOf<UAnimInstance> AnimBlueprintClass;
 
     /** Animation bridge — reads CMC state and exposes to AnimBP. */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MX|Robot|Animation")

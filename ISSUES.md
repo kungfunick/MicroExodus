@@ -1,6 +1,6 @@
 # MicroExodus — Issue Tracker
 
-**Last Updated:** 2026-03-10 (bug fix session — ISS-019 through ISS-023 resolved)
+**Last Updated:** 2026-03-10 (input remap session — LMB select+move, RMB camera, MMB rotate)
 
 All known issues, bugs, and improvement requests. Issues are resolved in dev chats and marked with status. Resolved issues are kept for history.
 
@@ -23,15 +23,13 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 **Description:** The migrated Blueprint from Game Animation Sample hasn't been opened to verify skeleton compatibility, animation retarget setup, or CharacterMovementComponent configuration.
 **Fix plan:** Phase GASP-A — first action in the GASP integration chat. See `MicroExodus_GASP_Integration_Prompt.md`.
 
-### ISS-004 — Box select rectangle not drawn on screen
+### ISS-004 — ~~Box select rectangle not drawn on screen~~
 **Severity:** Visual/UX | **Phase:** 2C | **Since:** 2026-03-09
-**Description:** Box selection works functionally (robots get selected on release) but the selection rectangle is not drawn on screen during drag. Needs a HUD class with Canvas drawing or UMG overlay.
-**Fix plan:** Create `AMXRTSHUD` with `DrawHUD()` override, draw box rect from SelectionManager's BoxStart/BoxEnd.
+**Status:** RESOLVED 2026-03-10 — Created AMXRTSHUD class. See ISS-R23.
 
-### ISS-005 — Right-click move vs rotate threshold may need tuning
+### ISS-005 — ~~Right-click move vs rotate threshold may need tuning~~
 **Severity:** UX | **Phase:** 2C | **Since:** 2026-03-09
-**Description:** Right-click distinguishes move command from camera rotation by click duration (<0.25s, <10px drag = move). May feel unresponsive or trigger unintended moves. Needs playtesting.
-**Fix plan:** Playtest and adjust thresholds. Consider: right-click always = move when selection exists, Alt+right-click = rotate.
+**Status:** RESOLVED 2026-03-10 — No longer applicable. Input scheme remapped: RMB = camera only, LMB = select + move. See ISS-R21.
 
 ### ISS-006 — Floor tile material may not accept "Color" parameter
 **Severity:** Cosmetic | **Phase:** 2C | **Since:** 2026-03-09
@@ -67,10 +65,9 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 **Severity:** Feature request | **Phase:** 2C | **Since:** 2026-03-10
 **Status:** RESOLVED 2026-03-10 — See ISS-R20.
 
-### ISS-024 — No visual indicator for control groups
+### ISS-024 — ~~No visual indicator for control groups~~
 **Severity:** Feature request | **Phase:** 2C | **Since:** 2026-03-10
-**Description:** No HUD feedback showing which control groups (Ctrl+1-9) are assigned or how many robots are in each. Requested: HUD bar at top showing bound groups with unit count, e.g., `[1] (3)  [2] (5)  [4] (2)`. Only groups with robots appear. Active group highlighted.
-**Fix plan:** Create AMXRTSHUD (or UMG widget) reading UMXSelectionManager::ControlGroups. Combine with ISS-004 (box select rectangle) in same HUD class.
+**Status:** RESOLVED 2026-03-10 — Created AMXRTSHUD with group display. See ISS-R23.
 
 ---
 
@@ -162,11 +159,30 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 
 ### ~~ISS-R19~~ — Selection ring too small, name not constant size, wrong colours (ISS-022)
 **Severity:** UX | **Phase:** 2C | **Resolved:** 2026-03-10
-**Fix:** (a) Selection ring scale 0.25→0.40 for visibility. (b) Name text WorldSize now scales inversely with camera distance each tick (`Dist * 0.008f`, clamped 2–20) for constant screen size. (c) All colours changed to green: SelectionColor `(0, 0.85, 0.25, 1)`, SelectedNameColor `(0, 220, 60)`, HoveredNameColor `(100, 200, 100)`. Files: MXRobotActor.h/cpp.
+**Fix:** (a) Selection ring scale 0.25→0.40 for visibility. (b) Name text WorldSize now scales inversely with camera distance each tick (`Dist * 0.03f`, clamped 5–50) for constant screen size. (c) All colours changed to green: SelectionColor `(0, 0.85, 0.25, 1)`, SelectedNameColor `(0, 220, 60)`, HoveredNameColor `(100, 200, 100)`. Files: MXRobotActor.h/cpp.
 
 ### ~~ISS-R20~~ — Camera pitch control (ISS-023)
 **Severity:** Feature | **Phase:** 2C | **Resolved:** 2026-03-10
-**Fix:** `HandleRotation()` now reads mouse DeltaY and applies it to `CachedSpringArm->GetRelativeRotation().Pitch`, clamped between `PitchMin` (-80°) and `PitchMax` (-10°). Reset view (Home key) also resets pitch to `DefaultPitch` (-45°). Added 3 new EditAnywhere UPROPERTYs: PitchMin, PitchMax, DefaultPitch. Files: MXRTSPlayerController.h/cpp.
+**Fix:** `HandleRotation()` now on Middle Mouse (was RMB). Reads DeltaY for pitch on SpringArm, clamped PitchMin(-80°) to PitchMax(-10°). Reset view resets pitch to DefaultPitch(-45°). Files: MXRTSPlayerController.h/cpp.
+
+### ~~ISS-R21~~ — Input scheme remap (ISS-025)
+**Severity:** UX overhaul | **Phase:** 2C | **Resolved:** 2026-03-10
+**Description:** Fundamental input remap: LMB does both selection AND movement. RMB = camera pan only. MMB = camera rotation. Old scheme had RMB split between camera and move commands via fragile timing thresholds.
+**Fix:** (1) LMB click robot = select. LMB click ground with selection = move command. LMB drag = box select. (2) RMB = tablecloth drag pan (was middle mouse). (3) MMB = yaw+pitch rotation (was RMB). (4) Deleted `HandleRightClickMove()` entirely. (5) DragPanSpeed 2→8. Files: MXRTSPlayerController.h/cpp.
+
+### ~~ISS-R22~~ — Control groups not working (ISS-026)
+**Severity:** Gameplay | **Phase:** 2C | **Resolved:** 2026-03-10
+**Root cause:** `FKey("1")` ≠ `EKeys::One`. UE5 key names are "One","Two",etc. `WasInputKeyJustPressed(FKey("1"))` silently never matched. Also used Ctrl instead of Shift for save.
+**Fix:** Replaced with proper `EKeys::One` through `EKeys::Nine` array. Save modifier changed from Ctrl to Shift. Files: MXRTSPlayerController.cpp.
+
+### ~~ISS-R23~~ — Box select rectangle not visible + control group HUD (ISS-004 + ISS-024)
+**Severity:** UX | **Phase:** 2C | **Resolved:** 2026-03-10
+**Fix:** Created `AMXRTSHUD` class (MXRTSHUD.h/cpp). DrawBoxSelectRect() draws green filled rectangle with border during LMB drag. DrawControlGroups() shows "Selected: N" count, assigned groups as `[1] (3) [2] (5)`, and hint text. Wired to GameMode via `HUDClass`. Added `GetControlGroupCount()` query to SelectionManager. Files: MXRTSHUD.h/cpp, MXSelectionManager.h/cpp, MXSpawnTestGameMode.cpp.
+
+### ~~ISS-R24~~ — Name text too small and scaling wrong (ISS-027)
+**Severity:** UX | **Phase:** 2C | **Resolved:** 2026-03-10
+**Root cause:** `Dist * 0.008f` at 500cm = 4cm character height — unreadable.
+**Fix:** Changed to `Dist * 0.03f`, clamped 5–50. At 500cm → 15cm characters — clearly readable at default zoom. File: MXRobotActor.cpp.
 
 ---
 
@@ -175,16 +191,15 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 | Input | Action |
 |-------|--------|
 | Arrow keys / WASD | Pan camera (follows camera yaw) |
-| Middle-click drag | Tablecloth drag pan |
-| Right-click drag | Yaw (mouse X) + pitch (mouse Y) |
+| **LMB click robot** | Select (Shift = additive) |
+| **LMB click ground** (with selection) | Move selected robots to location |
+| **LMB drag** | Box select (green rectangle drawn) |
+| **RMB drag** | Tablecloth drag pan (camera movement) |
+| **MMB drag** | Camera yaw (mouse X) + pitch (mouse Y) |
 | Scroll wheel | Zoom in/out (analog axis) |
 | Home | Reset view (center, default zoom/pitch/yaw) |
 | Double-click ground | Center camera on click point (no zoom) |
 | Double-click robot | Center + zoom in to robot |
-| Left-click | Select robot |
-| Left-click drag | Box select |
-| Shift+click | Add/remove from selection |
-| Right-click (short) | Move selected robots to location |
-| Ctrl+1-9 | Save control group |
+| Shift+1-9 | Save control group |
 | 1-9 | Recall control group |
 | Ctrl+A | Select all |

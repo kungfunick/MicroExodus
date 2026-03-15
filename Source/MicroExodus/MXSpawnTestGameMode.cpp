@@ -8,6 +8,7 @@
 #include "MXCameraRig.h"
 #include "MXTestFloorGenerator.h"
 #include "MXRTSPlayerController.h"
+#include "MXRTSHUD.h"
 #include "MXRobotManager.h"
 #include "MXInterfaces.h"
 #include "MXSwarmCamera.h"
@@ -23,6 +24,9 @@ AMXSpawnTestGameMode::AMXSpawnTestGameMode()
 {
     // Use the RTS controller (handles camera + selection + movement).
     PlayerControllerClass = AMXRTSPlayerController::StaticClass();
+
+    // HUD for box select rectangle + control group display.
+    HUDClass = AMXRTSHUD::StaticClass();
 
     // No pawn — the controller drives the camera rig directly.
     DefaultPawnClass = nullptr;
