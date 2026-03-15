@@ -131,10 +131,21 @@ void AMXRTSPlayerController::HandleRotation(float DeltaTime)
         FVector2D CurrentMouse;
         GetMousePosition(CurrentMouse.X, CurrentMouse.Y);
         float DeltaX = CurrentMouse.X - PreviousMousePos.X;
+        float DeltaY = CurrentMouse.Y - PreviousMousePos.Y;
 
+        // Yaw: rotate the camera rig actor.
         FRotator RigRot = CameraRig->GetActorRotation();
         RigRot.Yaw += DeltaX * RotateSpeed;
         CameraRig->SetActorRotation(RigRot);
+
+        // Pitch: adjust the spring arm's relative pitch, clamped.
+        if (CachedSpringArm)
+        {
+            FRotator ArmRot = CachedSpringArm->GetRelativeRotation();
+            ArmRot.Pitch = FMath::Clamp(ArmRot.Pitch - DeltaY * RotateSpeed,
+                                         PitchMin, PitchMax);
+            CachedSpringArm->SetRelativeRotation(ArmRot);
+        }
 
         PreviousMousePos = CurrentMouse;
     }
@@ -223,6 +234,14 @@ void AMXRTSPlayerController::HandleResetView()
         FRotator RigRot = CameraRig->GetActorRotation();
         RigRot.Yaw = 0.0f;
         CameraRig->SetActorRotation(RigRot);
+
+        // Reset pitch to default.
+        if (CachedSpringArm)
+        {
+            FRotator ArmRot = CachedSpringArm->GetRelativeRotation();
+            ArmRot.Pitch = DefaultPitch;
+            CachedSpringArm->SetRelativeRotation(ArmRot);
+        }
 
         // Reset zoom to default.
         TargetZoom = DefaultZoom;

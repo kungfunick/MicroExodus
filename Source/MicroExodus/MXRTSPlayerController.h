@@ -67,6 +67,18 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
     float RotateSpeed = 0.3f;
 
+    /** Minimum camera pitch angle (most top-down). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
+    float PitchMin = -80.0f;
+
+    /** Maximum camera pitch angle (most horizontal). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
+    float PitchMax = -10.0f;
+
+    /** Default pitch angle for reset view. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
+    float DefaultPitch = -45.0f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|RTS|Camera")
     float DragPanSpeed = 2.0f;
 

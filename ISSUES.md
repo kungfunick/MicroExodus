@@ -1,6 +1,6 @@
 # MicroExodus — Issue Tracker
 
-**Last Updated:** 2026-03-10 (PM session — 6 new issues from playtesting)
+**Last Updated:** 2026-03-10 (bug fix session — ISS-019 through ISS-023 resolved)
 
 All known issues, bugs, and improvement requests. Issues are resolved in dev chats and marked with status. Resolved issues are kept for history.
 
@@ -47,30 +47,25 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 **Severity:** UX | **Phase:** 2C | **Since:** 2026-03-09
 **Status:** RESOLVED 2026-03-10 — Replaced with proper HandleDoubleClick: raycast for robot first (zoom in), ground hit (center only, no zoom). See ISS-R08.
 
-### ISS-019 — Robots not moving when selected and right-click issued
+### ISS-019 — ~~Robots not moving when selected and right-click issued~~
 **Severity:** Gameplay (broken) | **Phase:** 2C | **Since:** 2026-03-10
-**Description:** After selecting robots and right-clicking a ground target, robots don't move. Movement was working previously — likely regression from debug session changes to MoveToLocation, AddMovementInput, or the right-click move command threshold/detection in HandleRightClickMove(). Mesh revert to standard Manny may also have affected CMC settings.
-**Fix plan:** Debug HandleRightClickMove → IssueMoveCommand → MoveToLocation → AddMovementInput pipeline. Check CMC config (MaxWalkSpeed, gravity, movement mode). Verify right-click isn't consumed entirely by rotation.
+**Status:** RESOLVED 2026-03-10 — See ISS-R16.
 
-### ISS-020 — Selection broken: not all robots selected, box select unreliable
+### ISS-020 — ~~Selection broken: not all robots selected, box select unreliable~~
 **Severity:** Gameplay (broken) | **Phase:** 2C | **Since:** 2026-03-10
-**Description:** Click-select and box-select are inconsistent — some robots can't be selected, and box drag doesn't reliably capture all robots in the rectangle. Related to ISS-004 (no visual box), but this is a functional failure not just visual. May be collision/trace channel issue after mesh revert, or IsActorInScreenRect projection off with current capsule/mesh configuration.
-**Fix plan:** Check SelectionTraceChannel (ECC_Pawn) matches robot collision. Verify RaycastForRobot hit detection. Check IsActorInScreenRect projection against current actor bounds.
+**Status:** RESOLVED 2026-03-10 — See ISS-R17.
 
-### ISS-021 — Some robots appear halfway embedded in the floor
+### ISS-021 — ~~Some robots appear halfway embedded in the floor~~
 **Severity:** Visual | **Phase:** 2C | **Since:** 2026-03-10
-**Description:** After reverting to standard Manny mesh, some robots spawn with their lower half inside the floor tiles. Likely capsule/mesh offset (Z=-18) or spawn Z offset not matching current mesh bounds.
-**Fix plan:** Verify capsule half-height vs mesh bottom. Check spawn Z offset. May need to adjust mesh relative Z or spawn position.
+**Status:** RESOLVED 2026-03-10 — See ISS-R18.
 
-### ISS-022 — Selection indicator hard to see, name text scales with zoom
+### ISS-022 — ~~Selection indicator hard to see, name text scales with zoom~~
 **Severity:** UX | **Phase:** 2C | **Since:** 2026-03-10
-**Description:** (a) Selection ring (cylinder at feet) is difficult to see. (b) Name text (UTextRenderComponent) scales with camera distance — unreadable at far zoom, giant at close. Should maintain constant screen size. Name text colour should be green.
-**Fix plan:** (a) Increase ring scale, brighter material, consider decal. (b) Scale NameTextComponent WorldSize inversely with camera distance each tick. Change colours to green variants.
+**Status:** RESOLVED 2026-03-10 — See ISS-R19.
 
-### ISS-023 — No camera pitch control (RMB should pitch and yaw)
+### ISS-023 — ~~No camera pitch control (RMB should pitch and yaw)~~
 **Severity:** Feature request | **Phase:** 2C | **Since:** 2026-03-10
-**Description:** Right-click drag only rotates yaw. Requested: RMB + mouse left/right = yaw, mouse forward = pitch up, mouse backward = pitch down. Full orbital camera feel.
-**Fix plan:** In HandleRotation(), read mouse Y delta → apply to SpringArm pitch. Clamp to sensible range (-80° to -10°) to prevent underground/flip.
+**Status:** RESOLVED 2026-03-10 — See ISS-R20.
 
 ### ISS-024 — No visual indicator for control groups
 **Severity:** Feature request | **Phase:** 2C | **Since:** 2026-03-10
@@ -150,6 +145,29 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 **Severity:** Feature | **Phase:** 2C | **Resolved:** 2026-03-10
 **Fix:** Added `BindToFullProfile(FMXRobotProfile)` to AMXRobotActor. Populates VisibleAnywhere UPROPERTYs: PersonalityDescription, Quirk, Likes, Dislikes, Role, Level, DisplayedTitle, ChassisColor, EyeColor. SpawnTestGameMode calls full binding when Identity module is available. Click a robot in the editor Outliner → Details panel shows all generated data. Files: MXRobotActor.h/cpp, MXSpawnTestGameMode.cpp.
 
+### ~~ISS-R16~~ — Robots not moving (ISS-019)
+**Severity:** Gameplay blocker | **Phase:** 2C | **Resolved:** 2026-03-10
+**Root cause:** Robots are unpossessed ACharacters (no PlayerController attached). `UCharacterMovementComponent::bRunPhysicsWithNoController` defaults to `false`, which causes the CMC to skip its entire tick. `AddMovementInput()` accumulated pending input but CMC never consumed it.
+**Fix:** Set `CMC->bRunPhysicsWithNoController = true` in AMXRobotActor constructor. File: MXRobotActor.cpp.
+
+### ~~ISS-R17~~ — Selection broken (ISS-020)
+**Severity:** Gameplay blocker | **Phase:** 2C | **Resolved:** 2026-03-10
+**Root cause:** Capsule was 16cm diameter (radius 8) — very small click target. The Pawn collision profile wasn't explicitly set, so depending on Blueprint serialisation the capsule might not block ECC_Pawn traces used by `RaycastForRobot()`.
+**Fix:** (1) Increased capsule to `InitCapsuleSize(14, 20)` — 28cm diameter, easier to click. (2) Added explicit `SetCollisionProfileName("Pawn")` to ensure ECC_Pawn traces always hit. Files: MXRobotActor.cpp.
+
+### ~~ISS-R18~~ — Robots embedded in floor (ISS-021)
+**Severity:** Visual | **Phase:** 2C | **Resolved:** 2026-03-10
+**Root cause:** Spawn Z was 5cm, but capsule half-height was 18→20cm. Capsule bottom sat at Z=5-20=-15, well below the floor surface at Z=0.
+**Fix:** (1) Capsule half-height now 20. Spawn Z set to 20 so capsule bottom sits exactly at floor Z=0. (2) Mesh relative Z offset updated to -20 to match new half-height. Files: MXRobotActor.cpp, MXSpawnTestGameMode.cpp.
+
+### ~~ISS-R19~~ — Selection ring too small, name not constant size, wrong colours (ISS-022)
+**Severity:** UX | **Phase:** 2C | **Resolved:** 2026-03-10
+**Fix:** (a) Selection ring scale 0.25→0.40 for visibility. (b) Name text WorldSize now scales inversely with camera distance each tick (`Dist * 0.008f`, clamped 2–20) for constant screen size. (c) All colours changed to green: SelectionColor `(0, 0.85, 0.25, 1)`, SelectedNameColor `(0, 220, 60)`, HoveredNameColor `(100, 200, 100)`. Files: MXRobotActor.h/cpp.
+
+### ~~ISS-R20~~ — Camera pitch control (ISS-023)
+**Severity:** Feature | **Phase:** 2C | **Resolved:** 2026-03-10
+**Fix:** `HandleRotation()` now reads mouse DeltaY and applies it to `CachedSpringArm->GetRelativeRotation().Pitch`, clamped between `PitchMin` (-80°) and `PitchMax` (-10°). Reset view (Home key) also resets pitch to `DefaultPitch` (-45°). Added 3 new EditAnywhere UPROPERTYs: PitchMin, PitchMax, DefaultPitch. Files: MXRTSPlayerController.h/cpp.
+
 ---
 
 ## Camera Controls Reference (Current)
@@ -158,9 +176,9 @@ All known issues, bugs, and improvement requests. Issues are resolved in dev cha
 |-------|--------|
 | Arrow keys / WASD | Pan camera (follows camera yaw) |
 | Middle-click drag | Tablecloth drag pan |
-| Right-click drag | Rotate camera yaw |
+| Right-click drag | Yaw (mouse X) + pitch (mouse Y) |
 | Scroll wheel | Zoom in/out (analog axis) |
-| Home | Reset view (center, default zoom, 0° yaw) |
+| Home | Reset view (center, default zoom/pitch/yaw) |
 | Double-click ground | Center camera on click point (no zoom) |
 | Double-click robot | Center + zoom in to robot |
 | Left-click | Select robot |

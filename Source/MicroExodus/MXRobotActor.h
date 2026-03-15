@@ -189,15 +189,15 @@ public:
 
     /** Selection ring color. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|Robot|Config")
-    FLinearColor SelectionColor = FLinearColor(0.0f, 0.8f, 1.0f, 1.0f);
+    FLinearColor SelectionColor = FLinearColor(0.0f, 0.85f, 0.25f, 1.0f);
 
     /** Name text color when selected. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|Robot|Config")
-    FColor SelectedNameColor = FColor(0, 200, 255, 255);
+    FColor SelectedNameColor = FColor(0, 220, 60, 255);
 
     /** Name text color when hovered (not selected). */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|Robot|Config")
-    FColor HoveredNameColor = FColor(200, 200, 200, 200);
+    FColor HoveredNameColor = FColor(100, 200, 100, 200);
 
     /** Optional soft reference for skeletal mesh (C++ mesh assignment). */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MX|Robot|Config")

@@ -118,13 +118,14 @@ void AMXSpawnTestGameMode::SpawnRobots()
                 Center.Y + FMath::Sin(Angle) * Radius,
                 0.0f  // FloorZ
             );
-            SpawnPos.Z += 5.0f; // Slightly above floor surface for spawn safety.
+            // Capsule half-height is 20. Spawn at Z=20 so capsule bottom sits on floor Z=0.
+            SpawnPos.Z += 20.0f;
         }
         else
         {
             // Fallback: circle layout.
             float Angle = (2.0f * PI * i) / NumRobots;
-            SpawnPos = FVector(FMath::Cos(Angle) * 200.0f, FMath::Sin(Angle) * 200.0f, 5.0f);
+            SpawnPos = FVector(FMath::Cos(Angle) * 200.0f, FMath::Sin(Angle) * 200.0f, 20.0f);
         }
 
         FActorSpawnParameters SpawnParams;

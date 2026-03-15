@@ -24,16 +24,19 @@ AMXRobotActor::AMXRobotActor()
 
     // ---- Capsule sizing for miniaturised robot ----
     // Default mannequin is ~180cm. At 0.20 scale = ~36cm.
-    // Capsule half-height ~18cm, radius ~8cm.
+    // Capsule: radius 14cm, half-height 20cm — slightly oversized for easy click-selection.
     // NOTE: We do NOT scale the actor — only the mesh is scaled in BeginPlay.
-    // This keeps the capsule, name text, and selection ring at designed sizes.
-    GetCapsuleComponent()->InitCapsuleSize(8.0f, 18.0f);
+    GetCapsuleComponent()->InitCapsuleSize(14.0f, 20.0f);
 
-    // ACharacter's base constructor set the mesh at Z = -DefaultHalfHeight (~-88).
-    // We need to realign it to match our mini capsule's half-height.
+    // Ensure capsule blocks Pawn traces (for cursor selection raycast).
+    GetCapsuleComponent()->SetCollisionProfileName(TEXT("Pawn"));
+
+    // Mesh Z offset: align mesh feet with capsule bottom.
+    // Capsule bottom = center - half_height = 0. Mesh origin (UE5 mannequin) is at feet.
+    // So mesh at relative Z = -HalfHeight places feet at capsule bottom.
     if (GetMesh())
     {
-        GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, -18.0f));
+        GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, -20.0f));
     }
 
     // ---- Character Movement ----
@@ -43,10 +46,13 @@ AMXRobotActor::AMXRobotActor()
         CMC->MaxWalkSpeed = 150.0f;
         CMC->bOrientRotationToMovement = true;
         CMC->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
-        CMC->GravityScale = 1.0f;  // Phase 2C fix: proper gravity now that floor has collision.
+        CMC->GravityScale = 1.0f;
         CMC->MaxAcceleration = 800.0f;
         CMC->BrakingDecelerationWalking = 400.0f;
         CMC->bUseControllerDesiredRotation = false;
+        // CRITICAL: Robots are NOT possessed by a controller.
+        // Without this, CMC skips its entire tick and AddMovementInput does nothing.
+        CMC->bRunPhysicsWithNoController = true;
     }
 
     // ---- Name Text Component ----
@@ -54,15 +60,14 @@ AMXRobotActor::AMXRobotActor()
     if (NameTextComponent)
     {
         NameTextComponent->SetupAttachment(GetRootComponent());
-        // Root is at capsule center (Z=18). Robot head at ~Z=36 (mesh 0.2 scale).
-        // Place name 8cm above head = world Z=44, relative Z = 44-18 = 26.
-        NameTextComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 26.0f));
+        // Capsule center at Z=20 (half-height 20). Robot head at ~Z=36 (mesh 0.2 scale).
+        // Place name above head: relative Z = head_world(36) - capsule_center(20) + margin(6) = 22.
+        NameTextComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 22.0f));
         NameTextComponent->SetHorizontalAlignment(EHTA_Center);
         NameTextComponent->SetVerticalAlignment(EVRTA_TextBottom);
-        // WorldSize 2.0 looks right for an unscaled actor (was 8.0 when actor was 0.2 scale).
-        NameTextComponent->SetWorldSize(2.0f);
-        NameTextComponent->SetTextRenderColor(FColor(200, 200, 200, 200));
-        NameTextComponent->SetVisibility(false); // Hidden by default (Phase 2C fix).
+        NameTextComponent->SetWorldSize(4.0f);
+        NameTextComponent->SetTextRenderColor(FColor(0, 220, 60, 255)); // Green
+        NameTextComponent->SetVisibility(false);
     }
 
     // ---- Selection Ring ----
@@ -70,9 +75,10 @@ AMXRobotActor::AMXRobotActor()
     if (SelectionRingComponent)
     {
         SelectionRingComponent->SetupAttachment(GetRootComponent());
-        // Root at capsule center (Z=18). Feet at Z=0. Ring at feet = relative Z=-18.
-        SelectionRingComponent->SetRelativeLocation(FVector(0.0f, 0.0f, -18.0f));
-        SelectionRingComponent->SetRelativeScale3D(FVector(0.25f, 0.25f, 0.01f));
+        // Ring at feet = capsule bottom = relative Z = -HalfHeight = -20.
+        SelectionRingComponent->SetRelativeLocation(FVector(0.0f, 0.0f, -20.0f));
+        // Bigger ring for visibility: 40cm diameter, paper-thin.
+        SelectionRingComponent->SetRelativeScale3D(FVector(0.40f, 0.40f, 0.01f));
         SelectionRingComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         SelectionRingComponent->SetVisibility(false); // Hidden until selected.
         SelectionRingComponent->SetCastShadow(false);
@@ -330,4 +336,10 @@ void AMXRobotActor::TickNameBillboard()
         FRotator LookAtRot = ToCamera.Rotation();
         NameTextComponent->SetWorldRotation(LookAtRot);
     }
+
+    // Scale WorldSize so name appears constant on screen regardless of zoom.
+    // Reference: WorldSize 4.0 looks right at ~500cm camera distance.
+    float Dist = ToCamera.Size();
+    float ScaledSize = FMath::Clamp(Dist * 0.008f, 2.0f, 20.0f);
+    NameTextComponent->SetWorldSize(ScaledSize);
 }
